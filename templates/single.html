@@ -1,0 +1,27 @@
+<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+<!-- wp:vielbunt/post-hero /-->
+
+<!-- wp:group {"tagName":"main","style":{"spacing":{"padding":{"top":"40px","bottom":"40px"}}},"layout":{"type":"constrained"}} -->
+<main class="wp-block-group" style="padding-top:40px;padding-bottom:40px">
+
+	<!-- wp:group {"layout":{"type":"flex","flexWrap":"wrap"},"style":{"spacing":{"margin":{"top":"0px","bottom":"24px"}}}} -->
+	<div class="wp-block-group" style="margin-top:0px;margin-bottom:24px">
+		<!-- wp:post-date {"style":{"typography":{"fontSize":"0.8rem","fontWeight":"600"}},"textColor":"ink"} /-->
+		<!-- wp:post-terms {"term":"category","style":{"typography":{"fontSize":"0.8rem","fontWeight":"700"}},"textColor":"pink"} /-->
+	</div>
+	<!-- /wp:group -->
+
+	<!-- wp:post-content {"layout":{"type":"constrained"}} /-->
+
+	<!-- wp:spacer {"height":"30px"} -->
+	<div style="height:30px" aria-hidden="true" class="wp-block-spacer"></div>
+	<!-- /wp:spacer -->
+
+	<!-- wp:post-navigation-link {"type":"previous","label":"Vorheriger Beitrag"} /-->
+	<!-- wp:post-navigation-link {"label":"Nächster Beitrag"} /-->
+
+</main>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->

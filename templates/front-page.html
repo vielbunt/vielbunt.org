@@ -1,0 +1,74 @@
+<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+<!-- wp:group {"tagName":"main","layout":{"type":"default"}} -->
+<main class="wp-block-group">
+
+	<!-- HERO (dynamischer Block: Foto-Overlay, atmende Balken, Text, Buttons) -->
+	<!-- wp:vielbunt/hero /-->
+
+	<!-- SCHNELLZUGRIFF (Block bringt Hintergrund + Überschrift selbst mit) -->
+	<!-- wp:vielbunt/quicklinks /-->
+
+	<!-- AKTUELLES -->
+	<!-- wp:group {"backgroundColor":"cream","style":{"spacing":{"padding":{"top":"36px","bottom":"36px"}}},"layout":{"type":"constrained","contentSize":"1200px"}} -->
+	<div class="wp-block-group has-cream-background-color has-background" style="padding-top:36px;padding-bottom:36px">
+		<!-- wp:group {"layout":{"type":"flex","justifyContent":"space-between","flexWrap":"wrap"},"style":{"spacing":{"margin":{"bottom":"18px"}}}} -->
+		<div class="wp-block-group" style="margin-bottom:18px">
+			<!-- wp:heading {"level":2,"textColor":"ink"} -->
+			<h2 class="wp-block-heading has-ink-color has-text-color">Aktuelles</h2>
+			<!-- /wp:heading -->
+			<!-- wp:paragraph {"style":{"typography":{"fontSize":"0.8rem","fontWeight":"700"}},"textColor":"pink"} -->
+			<p class="has-pink-color has-text-color" style="font-size:0.8rem;font-weight:700"><a href="/news/" style="color:inherit;text-decoration:none">Alle Termine →</a></p>
+			<!-- /wp:paragraph -->
+		</div>
+		<!-- /wp:group -->
+		<!-- wp:vielbunt/events {"limit":8} /-->
+	</div>
+	<!-- /wp:group -->
+
+	<!-- CTA-BAND -->
+	<!-- wp:group {"backgroundColor":"pink","textColor":"white","style":{"spacing":{"padding":{"top":"44px","bottom":"44px"}}},"layout":{"type":"constrained"}} -->
+	<div class="wp-block-group has-white-color has-pink-background-color has-text-color has-background" style="padding-top:44px;padding-bottom:44px">
+		<!-- wp:heading {"level":2,"textAlign":"center","textColor":"white"} -->
+		<h2 class="wp-block-heading has-text-align-center has-white-color has-text-color">Werde Teil von vielbunt</h2>
+		<!-- /wp:heading -->
+		<!-- wp:paragraph {"align":"center","style":{"typography":{"fontWeight":"500"}},"textColor":"white"} -->
+		<p class="has-text-align-center has-white-color has-text-color" style="font-weight:500">Mach queeres Leben in Darmstadt sichtbar. Komm zu einem Treffen oder unterstütze uns.</p>
+		<!-- /wp:paragraph -->
+		<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center","flexWrap":"wrap"},"style":{"spacing":{"margin":{"top":"22px"}}}} -->
+		<div class="wp-block-buttons" style="margin-top:22px">
+			<!-- wp:button {"backgroundColor":"white","textColor":"pink","style":{"border":{"radius":"0px"}}} -->
+			<div class="wp-block-button"><a class="wp-block-button__link has-pink-color has-white-background-color has-text-color has-background wp-element-button" style="border-radius:0px" href="/kalender/">Termine im Kalender</a></div>
+			<!-- /wp:button -->
+			<!-- wp:button {"backgroundColor":"white","textColor":"pink","style":{"border":{"radius":"0px"}}} -->
+			<div class="wp-block-button"><a class="wp-block-button__link has-pink-color has-white-background-color has-text-color has-background wp-element-button" style="border-radius:0px" href="/netzwerk-newsletter/">Queerletter abonnieren</a></div>
+			<!-- /wp:button -->
+			<!-- wp:button {"backgroundColor":"white","textColor":"pink","style":{"border":{"radius":"0px"}}} -->
+			<div class="wp-block-button"><a class="wp-block-button__link has-pink-color has-white-background-color has-text-color has-background wp-element-button" style="border-radius:0px" href="/spenden/">Spenden</a></div>
+			<!-- /wp:button -->
+		</div>
+		<!-- /wp:buttons -->
+	</div>
+	<!-- /wp:group -->
+
+	<!-- AUS DEM VEREIN -->
+	<!-- wp:group {"style":{"spacing":{"padding":{"top":"36px","bottom":"40px"}}},"layout":{"type":"constrained","contentSize":"1200px"}} -->
+	<div class="wp-block-group" style="padding-top:36px;padding-bottom:40px">
+		<!-- wp:group {"layout":{"type":"flex","justifyContent":"space-between","flexWrap":"wrap"},"style":{"spacing":{"margin":{"bottom":"6px"}}}} -->
+		<div class="wp-block-group" style="margin-bottom:6px">
+			<!-- wp:heading {"level":2,"textColor":"ink"} -->
+			<h2 class="wp-block-heading has-ink-color has-text-color">Aus dem Verein</h2>
+			<!-- /wp:heading -->
+			<!-- wp:paragraph {"style":{"typography":{"fontSize":"0.8rem","fontWeight":"700"}},"textColor":"pink"} -->
+			<p class="has-pink-color has-text-color" style="font-size:0.8rem;font-weight:700"><a href="/news/" style="color:inherit;text-decoration:none">Zum Blog →</a></p>
+			<!-- /wp:paragraph -->
+		</div>
+		<!-- /wp:group -->
+		<!-- wp:vielbunt/feed {"limit":6} /-->
+	</div>
+	<!-- /wp:group -->
+
+</main>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
