@@ -1,104 +1,104 @@
-# vielbunt 2.0 – WordPress Block-Child-Theme
+# vielbunt 2.0
 
-Block-Child-Theme auf Basis von **Twenty Twenty-Five** für vielbunt e.V.
-(Queere Community Darmstadt). Übernimmt die Markenfarben, den eckigen
-Poster-Look, Cera Pro als Schrift und erzeugt die Startseite automatisch
-aus euren bestehenden Beiträgen.
+WordPress Block-Child-Theme auf Basis von Twenty Twenty-Five, gebaut für
+vielbunt e.V. (Queere Community Darmstadt). Wir übernehmen die Markenfarben,
+den eckigen Poster-Look, Cera Pro als Schrift und bauen die Startseite
+automatisch aus unseren bestehenden Beiträgen zusammen.
 
 ## Installation
 
-1. **Eltern-Theme installieren:** In WordPress unter *Design → Themes →
-   Theme hinzufügen* nach „Twenty Twenty-Five" suchen und installieren
-   (muss vorhanden, aber nicht aktiviert sein).
-2. **Dieses Theme hochladen:** Die ZIP-Datei `vielbunt.zip` unter
-   *Design → Themes → Theme hinzufügen → Theme hochladen* einspielen und
-   aktivieren.
-3. **Cera Pro:** Die Schrift wird automatisch aus eurer Mediathek geladen
-   (`/wp-content/uploads/2021/01/`). Es werden **keine** Font-Dateien
-   mitgeliefert – das ist aus Lizenzgründen so gewollt (siehe unten).
-4. **Menü zuweisen:** Im Site-Editor (*Design → Editor*) den Navigations-
-   block im Header öffnen und euer bestehendes Menü auswählen bzw.
-   importieren. Gleiches im Footer.
-5. **Startseite setzen:** Unter *Einstellungen → Lesen* „Eine statische
-   Seite" wählen und als Startseite eure Homepage setzen – das Template
-   `front-page` greift dann automatisch.
+1. Zuerst **Twenty Twenty-Five** im WordPress-Backend installieren
+   (Design → Themes → Theme hinzufügen). Es muss nur vorhanden sein,
+   nicht aktiviert.
+2. Die ZIP-Datei `vielbunt.zip` unter Design → Themes → Theme hochladen
+   einspielen und aktivieren.
+3. **Cera Pro** wird automatisch aus unserer Mediathek geladen
+   (`/wp-content/uploads/2021/01/`). Wir liefern keine Font-Dateien
+   mit, das ist so gewollt (Lizenz, siehe unten).
+4. Im Site-Editor (Design → Editor) den Navigationsblock im Header
+   aufmachen und unser bestehendes Menü auswählen. Im Footer genauso.
+5. Unter Einstellungen → Lesen „Eine statische Seite" wählen und unsere
+   Homepage dort eintragen. Das Template `front-page` greift dann
+   automatisch.
 
-> **Wichtig:** Zuerst lokal (LocalWP/DDEV) oder auf einer Staging-
-> Subdomain testen, nicht direkt auf der Live-Seite. Inhalte (Beiträge,
-> Seiten, Menüs) bleiben erhalten – das Theme verändert nur die Darstellung.
+Bitte zuerst lokal (LocalWP, DDEV) oder auf einer Staging-Subdomain
+testen bevor wir das auf der Live-Seite machen. Inhalte bleiben erhalten,
+wir ändern nur die Darstellung.
 
-## Aufbau der Startseite
+## Wie die Startseite aufgebaut ist
 
-Die Startseite besteht aus vier eigenen Blöcken (server-seitig gerendert,
-im Site-Editor unter „vielbunt:" einfügbar): Hero, Schnellzugriff,
-Aktuelle Termine und News-Feed. Es werden **keine Shortcodes und keine
-rohen HTML-Blöcke** verwendet.
+Vier eigene Blöcke machen die Startseite aus, alle server-seitig
+gerendert und im Site-Editor unter „vielbunt:" einfügbar: Hero,
+Schnellzugriff, Aktuelle Termine und News-Feed. Keine Shortcodes,
+keine rohen HTML-Blöcke, das hat beim ersten Versuch alles kaputtgemacht.
 
-## Die automatische „Aktuelles"-Logik
+## Die Aktuelles-Logik
 
-Das Theme liest die **nächsten 8 Termine** automatisch aus euren Beiträgen.
-Entscheidend ist ein **führendes Datum im Beitragstitel**:
+Wir lesen die nächsten 8 Termine direkt aus unseren Beiträgen. Entscheident
+ist ein führendes Datum im Beitragstitel:
 
-| Beitragstitel                         | Ergebnis                          |
-|---------------------------------------|-----------------------------------|
-| `06.06.: Museumsbesuch …`             | Termin am 6. Juni, Titel „Museumsbesuch …" |
-| `28.05. · 19:00 treffbunt Nr. 182`    | Termin am 28. Mai                 |
-| `01.06.-05.06.2026 Wochenprogramm`    | Termin ab 1. Juni (villaQ)        |
-| `vielbunt zum IDAHOBITA*`             | **kein** Termin → News-Feed unten |
+- `06.06.: Museumsbesuch ...` → Termin am 6. Juni, Titel „Museumsbesuch"
+- `28.05. · 19:00 treffbunt Nr. 182` → Termin am 28. Mai
+- `01.06.-05.06.2026 Wochenprogramm` → Startet am 1. Juni
+- `vielbunt zum IDAHOBITA*` → kein Datum erkannt, landet im News-Feed
 
-- Der Datums-Block oben links auf der Kachel wird aus genau diesem Titel-
-  Datum erzeugt – ihr pflegt also **nichts doppelt**.
-- Der Datumspräfix wird für die Anzeige automatisch vom Titel abgeschnitten.
-- **Vergangene** Termine fallen automatisch raus; sortiert wird aufsteigend.
-- Da die Titel nur Tag/Monat tragen, leitet das Theme das Jahr selbst ab
-  (nächstes Auftreten). Ein explizit genanntes Jahr hat Vorrang.
-- Hat der Beitrag ein Bild (Beitragsbild, sonst erstes Bild im Inhalt),
-  wird dieses **Sharepic unverändert** als Kachel gezeigt – alle im selben
-  Format (4:5). Alt-Text für Screenreader = Datum + Titel. Ohne Bild:
-  farbige Kachel mit Datum + Titel.
+Das Datum oben links auf der Kachel kommt aus genau diesem Titel, wir
+pflegen also nichts doppelt. Der Datumspräfix wird für die Anzeige
+automatisch abgeschnitten.
 
-Der **News-Feed „Aus dem Verein"** (zwischen CTA und Footer) zeigt das
-Gegenteil: alle Beiträge **ohne** führendes Datum, neueste zuerst.
+Vergangene Termine fallen automatisch raus. Wenn es zu wenige zukünftige
+gibt füllen wir mit kürzlich vergangenen (max. 14 Tage) auf, immer so
+dass volle Reihen rauskommen (8 oder 4 Kacheln, nie 7 oder 5).
 
-### Wochenprogramme als Termine behandeln
-Aktuell erscheinen die villaQ-Wochenprogramme (führendes Datum) wie
-gewünscht **oben** in den Terminen. Sollen sie später doch in den Feed,
-lässt sich das in `functions.php` über eine Kategorie-Abfrage trennen.
+Da die Titel meist nur Tag/Monat tragen leiten wir das Jahr selbst ab,
+ausgehend vom Veröffentlichungsdatum des Beitrags. Ein explizit
+genanntes Jahr (z.B. `2026`) hat natürlich Vorrang.
 
-## Anpassen
+Hat der Beitrag ein Bild (Beitragsbild, sonst das erste Bild im Inhalt),
+zeigen wir das als Sharepic unverändert. Ohne Bild: farbige Kachel mit
+Datum und Titel. Alle Kacheln haben das selbe Seitenverhältnis (819:1024,
+passend zu unseren Sharepic-Vorlagen).
 
-- **Farben & Schrift:** *Design → Editor → Stile* – die vielbunt-Palette
-  ist hinterlegt.
-- **Hero-Hintergrund:** Im Site-Editor (*Design → Editor*) die Startseite
-  öffnen, den Hero-Block anklicken; rechts in der Seitenleiste unter
-  „Hintergrundbild" ein Bild aus der Mediathek wählen. Die pinke
-  Überlagerung und der weiße Text bleiben automatisch lesbar. Ohne Bild
-  zeigt der Hero einen Marken-Verlauf als Platzhalter.
-- **Schnellzugriff-Hintergrund:** Schnellzugriff-Block anklicken,
-  Hintergrundbild ebenso in der Seitenleiste wählen. Der weiße Schleier
-  dimmt das Bild automatisch auf ~20 %, die farbigen Kacheln liegen
-  deckend darüber.
-- **Hero-Texte:** aktuell per Filter (`vielbunt_hero_title`,
-  `vielbunt_hero_kicker`, `vielbunt_hero_lead`) in der `functions.php`
-  anpassbar.
-- **Logo:** Header und Footer nutzen zwei Varianten desselben Logos –
-  Header die **farbige** Variante (Bildmarke + Wortmarke), Footer die
-  **weiße** Variante mit Claim auf dunklem Grund (entspricht der
-  Richtlinie für dunkle Hintergründe). Beides über den Block
-  „vielbunt: Logo" (Attribut `variant`: `color` bzw. `white-claim`). Die
-  Wortmarke ist Live-Text in Cera Pro (vielbunt-Kontext = lizenzkonform).
+Der News-Feed unten zeigt das Gegenteil: alle Beiträge ohne führendes
+Datum, neuste zuerst.
+
+## Was man im Editor ändern kann
+
+Wir haben die wichtigsten Inhalte direkt im Site-Editor bearbeitbar
+gemacht, ohne in den Code zu müssen:
+
+**Hero-Block** (rechte Seitenleiste):
+- Hintergrundbild aus unserer Mediathek wählen
+- Kicker, Titel und Leadtext überschreiben
+- Beschriftung und URL beider Buttons ändern
+
+Alles leer lassen und es greift der Standard-Wert.
+
+**Schnellzugriff-Block**:
+- Für jede der 8 Kacheln: Beschriftung und URL ändern
+- Hintergrundbild pro Kachel wählen (der Farbschleier kommt automatisch)
+- Überschrift „Schnellzugriff" ändern
+
+**Hero-Text als Filter:** Wer lieber in `functions.php` arbeitet,
+kann Kicker/Titel/Lead auch über `vielbunt_hero_title` etc. setzen.
+Block-Attribut hat dann Vorrang.
+
+## Farben und Schrift
+
+Unter Design → Editor → Stile liegt die vielbunt-Palette mit allen sechs
+Regenbogenfarben plus Anthrazit, Creme und Weiß. Schrift ist Cera Pro
+(per @font-face aus unserer Mediathek, nicht im Theme enthalten).
 
 ## Lizenzhinweis Cera Pro
 
-Die Schriftart der Wortmarke ist lizenziert. Laut vielbunt-Richtlinie darf
-die Font **nicht weitergegeben** und **nicht außerhalb von vielbunt-
-Kontexten** verwendet werden. Deshalb enthält dieses Theme **keine**
-Schriftdateien, sondern lädt sie per `@font-face` aus eurer eigenen
-Mediathek. Damit bleibt das Theme weitergebbar und lizenzkonform.
+Die Schriftart ist lizensiert und darf laut vielbunt-Richtlinie nicht
+weitergegeben und nicht außerhalb von vielbunt-Kontexten verwendet werden.
+Wir liefern deshalb keine Schriftdateien mit sondern laden sie per
+@font-face aus unserer eigenen Mediathek. So bleibt das Theme weitergebbar
+und trotzdem alles lizenzkonform.
 
-## Hinweis zur Logo-Animation
+## Die atmenden Balken im Hero
 
-Die langsam „atmenden" Balken im Hero sind ein **dekoratives Motiv**, das
-die Bildmarke zitiert – **nicht** das echte Logo. Die Geometrie des Logos
-wird nie verändert (vielbunt-Richtlinie, Folie 5). Die Animation
-respektiert zudem `prefers-reduced-motion`.
+Das sind ein dekoratives Motiv das die Bildmarke zittiert, nicht das
+echte Logo. Wir verändern die Geometrie des Logos nie (vielbunt-Richtlinie).
+Die Animation respektiert `prefers-reduced-motion`.
