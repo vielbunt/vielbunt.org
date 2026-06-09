@@ -171,35 +171,43 @@ function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
 		}
 	);
 
-	$events = array_slice( $events_upcoming, 0, $event_limit );
-	$count  = count( $events );
+	// Wir wollen immer genau 8 oder genau 4 Kacheln. Vergangene Events
+	// nutzen wir nur als Lückenfüller wenn es nicht mal 4 zukünftige gibt.
+	// Sobald wir 4+ zukünftige haben, zeigen wir die ersten 4 oder 8
+	// ohne irgendwas aufzufüllen. Sonst würden vergangene Termine
+	// auftauchen obwohl genug aktuelle da sind, das sieht komisch aus.
+	$upcoming_count = count( $events_upcoming );
 
-	// Wir wollen immer genau 8 oder genau 4 Kacheln (volle Raster-Reihen).
-	// Zukünftige Events kommen zuerst. Wenn es zu wenig gibt füllen wir
-	// mit kürzlich vergangenen auf, aber wir sortieren den ganzen Block
-	// danach nochmal durch damit die Datumsreihenfolge stimmt.
-	if ( $count < $event_limit && ! empty( $events_recent ) ) {
-		// die aktuellsten vergangenen zuerst holen
-		usort(
-			$events_recent,
-			static function ( $a, $b ) {
-				return $b['meta']['timestamp'] <=> $a['meta']['timestamp'];
+	if ( $upcoming_count >= $event_limit ) {
+		// mehr als genug zukünftige, einfach die ersten 8
+		$events = array_slice( $events_upcoming, 0, $event_limit );
+	} elseif ( $upcoming_count >= 4 ) {
+		// zwischen 4 und 7 zukünftige, wir zeigen genau 4 ohne Füller
+		$events = array_slice( $events_upcoming, 0, 4 );
+	} else {
+		// weniger als 4 zukünftige, jetzt kommt der Füller aus vergangenen
+		$events = $events_upcoming; // alle zukünftigen erstmal nehmen
+		$count  = count( $events );
+
+		if ( ! empty( $events_recent ) ) {
+			// jüngste vergangene zuerst sortieren
+			usort(
+				$events_recent,
+				static function ( $a, $b ) {
+					return $b['meta']['timestamp'] <=> $a['meta']['timestamp'];
+				}
+			);
+
+			$total_available = $count + count( $events_recent );
+
+			if ( $total_available >= 4 ) {
+				// reicht für eine volle Reihe mit 4
+				$needed = 4 - $count;
+				$events = array_merge( $events, array_slice( $events_recent, 0, $needed ) );
+			} else {
+				// kommt halt nicht auf 4, wir zeigen was da ist
+				$events = array_merge( $events, $events_recent );
 			}
-		);
-
-		$total_available = $count + count( $events_recent );
-
-		if ( $total_available >= $event_limit ) {
-			// genug für 8
-			$events = array_merge( $events, array_slice( $events_recent, 0, $event_limit - $count ) );
-		} elseif ( $total_available >= 4 ) {
-			// reicht für 4, nicht für 8
-			$needed = max( 0, 4 - $count );
-			$events = array_merge( $events, array_slice( $events_recent, 0, $needed ) );
-			$events = array_slice( $events, 0, 4 );
-		} else {
-			// weniger als 4 insgesamt, zeigen was da ist
-			$events = array_merge( $events, $events_recent );
 		}
 	}
 
