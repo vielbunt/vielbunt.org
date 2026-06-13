@@ -5,7 +5,7 @@ Description: Block-Child-Theme auf Basis von Twenty Twenty-Five für vielbunt e.
 Author: vielbunt e.V. – AK Öffentlichkeitsarbeit
 Author URI: https://www.vielbunt.org
 Template: twentytwentyfive
-Version: 2.0.2
+Version: 2.0.3
 Requires at least: 6.7
 Tested up to: 6.8
 Requires PHP: 7.4
@@ -453,6 +453,20 @@ a:focus-visible, button:focus-visible,
 
 /* Footer-Logo halb so groß wie im Header */
 .vb-logo--white-claim svg { height: 32px; }
+
+/* ── Spectra/UAGB-Icons ──
+   Manche Spectra-Icons (Icon-Liste, Timeline-Marker, Marketing-Buttons …)
+   rendern als inline-SVG mit viewBox, aber ohne width/height-Attribut.
+   Ohne eigene Maße blähen sich solche SVGs auf die volle Spaltenbreite auf
+   (z. B. in der Beitrags-Schleife unter /category/arbeitsgruppen/, wo die
+   Plugin-eigenen Größen-Styles nicht greifen). 1em bindet die Größe an die
+   – von Spectra gesetzte – Schriftgröße des Icon-Wrappers, also genau das
+   beabsichtigte Verhalten. Greift nur bei SVGs ohne beide Maß-Attribute,
+   korrekt dimensionierte Icons bleiben unangetastet. */
+[class*="uagb-"] svg:not([width]):not([height]) {
+	width: 1em;
+	height: 1em;
+}
 
 /* Animationen deaktivieren wenn der User das so eingestellt hat */
 @media (prefers-reduced-motion: reduce) {
