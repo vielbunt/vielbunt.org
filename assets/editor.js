@@ -3,9 +3,11 @@
  * Ausgabe macht PHP, wir kümmern uns nur um die Seitenleiste
  * und die ServerSideRender-Vorschau. Kein Build-Schritt nötig.
  */
-( function ( blocks, element, ssr, i18n, blockEditor, components ) {
+( function ( blocks, element, ssr, i18n, blockEditor, components, apiFetch ) {
 	var el            = element.createElement;
 	var Fragment      = element.Fragment;
+	var useEffect     = element.useEffect;
+	var useRef        = element.useRef;
 	var __            = i18n.__;
 	var InspectorControls = blockEditor.InspectorControls;
 	var MediaUpload       = blockEditor.MediaUpload;
@@ -15,10 +17,96 @@
 	var TextControl    = components.TextControl;
 	var TextareaControl = components.TextareaControl;
 
+	/* ----------------------------------------------------------------
+	 * Persistenz: Block-Inhalte zusätzlich in wp_options spiegeln,
+	 * damit sie ein Theme-Update / Template-Reset überleben.
+	 * Geredet wird mit dem REST-Endpoint csd/v1/settings (GET + POST).
+	 * apiFetch hängt Nonce & /wp-json/-Basis automatisch dran.
+	 * ---------------------------------------------------------------- */
+	var SETTINGS_ROUTE = 'csd/v1/settings';
+	var settingsCache  = null; // Promise, einmal laden reicht fürs Editor-Leben
+
+	function fetchSettings() {
+		if ( ! settingsCache ) {
+			settingsCache = apiFetch( { path: SETTINGS_ROUTE } ).catch( function () { return {}; } );
+		}
+		return settingsCache;
+	}
+
+	function saveBlock( blockKey, attributes ) {
+		return apiFetch( {
+			path:   SETTINGS_ROUTE,
+			method: 'POST',
+			data:   { block: blockKey, attributes: attributes }
+		} ).then( function ( res ) {
+			settingsCache = Promise.resolve( res ); // Cache aktuell halten
+			return res;
+		} ).catch( function () { /* still – nächster Edit versucht es erneut */ } );
+	}
+
+	function debounce( fn, wait ) {
+		var t;
+		return function () {
+			var args = arguments;
+			clearTimeout( t );
+			t = setTimeout( function () { fn.apply( null, args ); }, wait );
+		};
+	}
+
+	function isEmptyValue( v ) {
+		if ( v === undefined || v === null || v === '' ) {
+			return true;
+		}
+		if ( typeof v === 'object' ) {
+			return Object.keys( v ).length === 0;
+		}
+		return false;
+	}
+
+	/* Liefert einen Setter, der (a) wie gewohnt setAttributes aufruft
+	   und (b) den kompletten Attributsatz debounced nach wp_options
+	   schreibt. Beim Mounten werden leere Attribute aus wp_options
+	   vorbefüllt – so ist nach einem Template-Reset alles wieder da. */
+	function usePersistedSetter( props, blockKey, attrKeys ) {
+		var set      = props.setAttributes;
+		var hydrated = useRef( false );
+		var saver    = useRef( null );
+		if ( ! saver.current ) {
+			saver.current = debounce( function ( attrs ) { saveBlock( blockKey, attrs ); }, 800 );
+		}
+
+		useEffect( function () {
+			fetchSettings().then( function ( all ) {
+				var stored = ( all && all[ blockKey ] ) || {};
+				var fill   = {};
+				attrKeys.forEach( function ( k ) {
+					if ( isEmptyValue( props.attributes[ k ] ) && ! isEmptyValue( stored[ k ] ) ) {
+						fill[ k ] = stored[ k ];
+					}
+				} );
+				if ( Object.keys( fill ).length ) {
+					set( fill ); // Hydrierung – löst absichtlich KEIN Speichern aus
+				}
+				hydrated.current = true;
+			} );
+		}, [] );
+
+		return function ( changes ) {
+			set( changes );
+			if ( hydrated.current ) {
+				saver.current( Object.assign( {}, props.attributes, changes ) );
+			}
+		};
+	}
+
+	var HERO_KEYS  = [ 'bgUrl', 'bgId', 'heroKicker', 'heroTitle', 'heroLead',
+		'btnSolidLabel', 'btnSolidUrl', 'btnGhostLabel', 'btnGhostUrl' ];
+	var QUICK_KEYS = [ 'heading', 'images', 'tiles' ];
+
 	/* Hero */
 	function heroEdit( props ) {
 		var a = props.attributes;
-		var set = props.setAttributes;
+		var set = usePersistedSetter( props, 'hero', HERO_KEYS );
 
 		return el( Fragment, {},
 
@@ -115,7 +203,7 @@
 
 	function quicklinksEdit( props ) {
 		var a   = props.attributes;
-		var set = props.setAttributes;
+		var set = usePersistedSetter( props, 'quicklinks', QUICK_KEYS );
 		var imgs  = a.images || {};
 		var tiles = a.tiles  || {};
 
@@ -242,4 +330,4 @@
 	registerPlain( 'vielbunt/logo',        __( 'vielbunt: Logo', 'vielbunt' ),             'flag', { variant: { type: 'string' } } );
 	registerPlain( 'vielbunt/footerlinks', __( 'vielbunt: Footer-Links', 'vielbunt' ),     'editor-ul' );
 
-} )( window.wp.blocks, window.wp.element, window.wp.serverSideRender, window.wp.i18n, window.wp.blockEditor, window.wp.components );
+} )( window.wp.blocks, window.wp.element, window.wp.serverSideRender, window.wp.i18n, window.wp.blockEditor, window.wp.components, window.wp.apiFetch );

@@ -83,6 +83,30 @@ Alles leer lassen und es greift der Standard-Wert.
 kann Kicker/Titel/Lead auch über `vielbunt_hero_title` etc. setzen.
 Block-Attribut hat dann Vorrang.
 
+### Warum die Inhalte jetzt Updates überleben
+
+Früher lagen die Hero-/Schnellzugriff-Inhalte ausschließlich als
+Block-Attribute in der DB-Kopie des `front-page`-Templates. Bei einem
+Theme-Re-Upload, einem geänderten Ordnernamen oder „Anpassungen löschen"
+war diese Kopie weg und alles fiel auf die Code-Defaults zurück – die
+Texte, Buttons und Bilder mussten neu gesetzt werden.
+
+Jetzt spiegelt der Editor jede Änderung zusätzlich in eine
+`wp_options`-Zeile (`vielbunt_block_settings`). Optionen hängen nicht am
+Theme-Ordner und überleben Updates und Template-Resets. Technisch:
+
+- REST-Endpoint `csd/v1/settings` (GET + POST), nur für Nutzer mit
+  `edit_theme_options`.
+- `editor.js` lädt die Werte beim Öffnen des Blocks und befüllt leere
+  Attribute; jede Änderung wird debounced zurückgeschrieben.
+- Die PHP-Render-Callbacks lesen in der Reihenfolge
+  **Block-Attribut → `wp_options` → Hardcoded-Default**.
+
+Heißt: Selbst wenn die Template-Anpassung mal verloren geht, holt sich
+der Block die Inhalte beim nächsten Öffnen automatisch aus `wp_options`
+zurück. Manuell zurücksetzen geht über das Löschen der Option
+`vielbunt_block_settings`.
+
 ## Farben und Schrift
 
 Unter Design → Editor → Stile liegt die vielbunt-Palette mit allen sechs
