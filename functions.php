@@ -171,43 +171,41 @@ function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
 		}
 	);
 
-	// Wir wollen immer genau 8 oder genau 4 Kacheln. Vergangene Events
-	// nutzen wir nur als Lückenfüller wenn es nicht mal 4 zukünftige gibt.
-	// Sobald wir 4+ zukünftige haben, zeigen wir die ersten 4 oder 8
-	// ohne irgendwas aufzufüllen. Sonst würden vergangene Termine
-	// auftauchen obwohl genug aktuelle da sind, das sieht komisch aus.
+	// Wir wollen immer genau 8 oder genau 4 Kacheln (volle Reihen im
+	// 4-Spalten-Grid, keine angebrochene zweite Reihe). Gibt es MEHR als 4
+	// zukünftige Termine, streben wir 8 an; bei 4 oder weniger zeigen wir 4.
+	// Fehlende Plätze füllen wir mit den jüngsten vergangenen Terminen
+	// (max. 14 Tage alt). Reicht es damit nicht für eine volle 8er-Belegung,
+	// fallen wir auf 4 zurück, damit nie eine angebrochene Reihe entsteht.
 	$upcoming_count = count( $events_upcoming );
+	$target         = ( $upcoming_count > 4 ) ? $event_limit : 4;
 
-	if ( $upcoming_count >= $event_limit ) {
-		// mehr als genug zukünftige, einfach die ersten 8
-		$events = array_slice( $events_upcoming, 0, $event_limit );
-	} elseif ( $upcoming_count >= 4 ) {
-		// zwischen 4 und 7 zukünftige, wir zeigen genau 4 ohne Füller
-		$events = array_slice( $events_upcoming, 0, 4 );
+	// jüngste vergangene zuerst, damit sie als Füller in der richtigen
+	// Reihenfolge bereitstehen
+	usort(
+		$events_recent,
+		static function ( $a, $b ) {
+			return $b['meta']['timestamp'] <=> $a['meta']['timestamp'];
+		}
+	);
+
+	if ( $upcoming_count >= $target ) {
+		// genug zukünftige, einfach die ersten $target nehmen
+		$events = array_slice( $events_upcoming, 0, $target );
 	} else {
-		// weniger als 4 zukünftige, jetzt kommt der Füller aus vergangenen
-		$events = $events_upcoming; // alle zukünftigen erstmal nehmen
-		$count  = count( $events );
+		// mit vergangenen auf $target auffüllen
+		$needed = $target - $upcoming_count;
+		$events = array_merge( $events_upcoming, array_slice( $events_recent, 0, $needed ) );
 
-		if ( ! empty( $events_recent ) ) {
-			// jüngste vergangene zuerst sortieren
-			usort(
-				$events_recent,
-				static function ( $a, $b ) {
-					return $b['meta']['timestamp'] <=> $a['meta']['timestamp'];
-				}
-			);
-
-			$total_available = $count + count( $events_recent );
-
-			if ( $total_available >= 4 ) {
-				// reicht für eine volle Reihe mit 4
-				$needed = 4 - $count;
+		// Reicht es nicht für volle 8 Kacheln, auf 4 zurückfallen
+		if ( $event_limit === $target && count( $events ) < $target ) {
+			$target = 4;
+			$needed = $target - $upcoming_count;
+			$events = $events_upcoming;
+			if ( $needed > 0 ) {
 				$events = array_merge( $events, array_slice( $events_recent, 0, $needed ) );
-			} else {
-				// kommt halt nicht auf 4, wir zeigen was da ist
-				$events = array_merge( $events, $events_recent );
 			}
+			$events = array_slice( $events, 0, $target );
 		}
 	}
 
