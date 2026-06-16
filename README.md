@@ -32,6 +32,24 @@ gerendert und im Site-Editor unter „vielbunt:" einfügbar: Hero,
 Schnellzugriff, Aktuelle Termine und News-Feed. Keine Shortcodes,
 keine rohen HTML-Blöcke, das hat beim ersten Versuch alles kaputtgemacht.
 
+## Spendenkampagne (optional, Donorbox)
+
+Unter dem Hero kann optional ein Kampagnen-Bereich mit Donorbox-Zielmesser
+und Spenden-Button erscheinen. Er ist **standardmäßig aus**, die Startseite
+bleibt also wie bisher. Steuerung über **Design → Customizer →
+„Spendenkampagne"**: Häkchen setzen, Überschrift und optionalen Text
+eintragen und die Einbettungscodes aus Donorbox (Kampagne → „Ziel-Messer"
+bzw. „Spenden-Button") einfügen. Solange die Kampagne deaktiviert ist oder
+kein Code hinterlegt wurde, wird nichts gerendert – ohne Layout-Lücke.
+
+Technisch wird der Bereich nicht als platzierbarer Block ins Template
+geschrieben, sondern per `render_block`-Filter
+(`vielbunt_render_campaign_after_hero`) direkt hinter den Hero gehängt. Das
+ist nötig, weil ein im Site-Editor angepasstes `front-page`-Template in der
+Datenbank liegt und Änderungen an der Theme-Datei dann ignoriert würden.
+(Gleiche Mechanik wie auf csd-darmstadt.de, dort aber für die CSD-2026-
+Kampagne aktiv vorbelegt.)
+
 ## Die Aktuelles-Logik
 
 Wir lesen die nächsten 8 Termine direkt aus unseren Beiträgen. Entscheident

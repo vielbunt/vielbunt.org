@@ -735,6 +735,152 @@ function vielbunt_block_footerlinks( $attributes = array() ) {
 	return $out;
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Spendenkampagne: Zielmesser + Spenden-Button (Donorbox)
+   Gesteuert über den Customizer (Design → Anpassen → "Spendenkampagne").
+   Auf vielbunt.org ist die Kampagne standardmäßig DEAKTIVIERT und leer –
+   die Startseite bleibt also wie bisher. Die Möglichkeit, eine Kampagne
+   einzublenden, steht aber bereit (gleiches Verhalten wie csd-darmstadt.de):
+   einfach im Customizer aktivieren und die Donorbox-Einbettungscodes
+   einfügen. Der Block rendert nur etwas, wenn aktiviert UND ein Code da ist.
+   ────────────────────────────────────────────────────────────── */
+function vielbunt_block_campaign( $attributes = array() ) {
+	if ( ! get_theme_mod( 'vielbunt_campaign_enable', false ) ) {
+		return '';
+	}
+
+	$meter  = get_theme_mod( 'vielbunt_campaign_meter',  '' );
+	$button = get_theme_mod( 'vielbunt_campaign_button', '' );
+
+	if ( '' === trim( (string) $meter ) && '' === trim( (string) $button ) ) {
+		return '';
+	}
+
+	$heading = get_theme_mod( 'vielbunt_campaign_heading', '' );
+	$text    = get_theme_mod( 'vielbunt_campaign_text', '' );
+
+	ob_start();
+	?>
+	<section class="vb-campaign">
+		<div class="vb-campaign__inner">
+			<?php if ( '' !== trim( (string) $heading ) ) : ?>
+				<h2 class="vb-campaign__title"><?php echo esc_html( $heading ); ?></h2>
+			<?php endif; ?>
+			<?php if ( '' !== trim( (string) $text ) ) : ?>
+				<p class="vb-campaign__text"><?php echo esc_html( $text ); ?></p>
+			<?php endif; ?>
+			<?php if ( '' !== trim( (string) $meter ) ) : ?>
+				<div class="vb-campaign__meter"><?php echo $meter; // phpcs:ignore WordPress.Security.EscapeOutput -- Donorbox-Einbettung, beim Speichern per Capability gefiltert ?></div>
+			<?php endif; ?>
+			<?php if ( '' !== trim( (string) $button ) ) : ?>
+				<div class="vb-campaign__cta"><?php echo $button; // phpcs:ignore WordPress.Security.EscapeOutput -- s. o. ?></div>
+			<?php endif; ?>
+		</div>
+	</section>
+	<?php
+	return ob_get_clean();
+}
+
+/* Die Kampagne hängen wir per render_block-Filter direkt an den Hero-Block an.
+   Das ist zuverlässiger als ein Block-Kommentar im front-page-Template: Sobald
+   das Template einmal im Site-Editor angepasst wurde, liegt es in der Datenbank
+   und Änderungen an der Theme-Datei werden ignoriert. Über den Hero-Block als
+   Anker erscheint die Kampagne dagegen immer an der richtigen Stelle. (Solange
+   die Kampagne im Customizer deaktiviert ist, gibt der Filter nichts aus.) */
+function vielbunt_render_campaign_after_hero( $block_content, $block ) {
+	if ( ! empty( $block['blockName'] ) && 'vielbunt/hero' === $block['blockName'] && is_front_page() ) {
+		$block_content .= vielbunt_block_campaign();
+	}
+	return $block_content;
+}
+add_filter( 'render_block', 'vielbunt_render_campaign_after_hero', 10, 2 );
+
+/* Customizer: Sektion "Spendenkampagne" */
+function vielbunt_campaign_sanitize_bool( $value ) {
+	return (bool) $value;
+}
+
+/* Roh-HTML-Einbettung (Donorbox liefert <script> + Custom-Elements).
+   Gleiches Muster wie das Custom-HTML-Widget im Core: Wer Roh-HTML darf,
+   behält den Code 1:1, alle anderen bekommen wp_kses_post. */
+function vielbunt_campaign_sanitize_embed( $value ) {
+	if ( current_user_can( 'unfiltered_html' ) ) {
+		return $value;
+	}
+	return wp_kses_post( $value );
+}
+
+function vielbunt_customize_campaign( $wp_customize ) {
+	$wp_customize->add_section( 'vielbunt_campaign', array(
+		'title'       => __( 'Spendenkampagne', 'vielbunt' ),
+		'priority'    => 130,
+		'description' => __( 'Zielmesser (Fortschrittsbalken) und Spenden-Button von Donorbox auf der Startseite. Standardmäßig aus. Zum Aktivieren ankreuzen und die Einbettungscodes aus Donorbox (Kampagne → „Ziel-Messer" bzw. „Spenden-Button") einfügen.', 'vielbunt' ),
+	) );
+
+	$wp_customize->add_setting( 'vielbunt_campaign_enable', array(
+		'default'           => false,
+		'type'              => 'theme_mod',
+		'sanitize_callback' => 'vielbunt_campaign_sanitize_bool',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'vielbunt_campaign_enable', array(
+		'section' => 'vielbunt_campaign',
+		'type'    => 'checkbox',
+		'label'   => __( 'Kampagne auf der Startseite anzeigen', 'vielbunt' ),
+	) );
+
+	$wp_customize->add_setting( 'vielbunt_campaign_heading', array(
+		'default'           => '',
+		'type'              => 'theme_mod',
+		'sanitize_callback' => 'sanitize_text_field',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'vielbunt_campaign_heading', array(
+		'section' => 'vielbunt_campaign',
+		'type'    => 'text',
+		'label'   => __( 'Überschrift', 'vielbunt' ),
+	) );
+
+	$wp_customize->add_setting( 'vielbunt_campaign_text', array(
+		'default'           => '',
+		'type'              => 'theme_mod',
+		'sanitize_callback' => 'sanitize_textarea_field',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'vielbunt_campaign_text', array(
+		'section' => 'vielbunt_campaign',
+		'type'    => 'textarea',
+		'label'   => __( 'Einleitungstext (optional)', 'vielbunt' ),
+	) );
+
+	$wp_customize->add_setting( 'vielbunt_campaign_meter', array(
+		'default'           => '',
+		'type'              => 'theme_mod',
+		'sanitize_callback' => 'vielbunt_campaign_sanitize_embed',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'vielbunt_campaign_meter', array(
+		'section'     => 'vielbunt_campaign',
+		'type'        => 'textarea',
+		'label'       => __( 'Zielmesser – Einbettungscode', 'vielbunt' ),
+		'description' => __( 'Kompletten Code aus Donorbox („Ziel-Messer" → Code einbetten) hier einfügen.', 'vielbunt' ),
+	) );
+
+	$wp_customize->add_setting( 'vielbunt_campaign_button', array(
+		'default'           => '',
+		'type'              => 'theme_mod',
+		'sanitize_callback' => 'vielbunt_campaign_sanitize_embed',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'vielbunt_campaign_button', array(
+		'section'     => 'vielbunt_campaign',
+		'type'        => 'textarea',
+		'label'       => __( 'Spenden-Button – Einbettungscode', 'vielbunt' ),
+		'description' => __( 'Kompletten Code aus Donorbox („Spenden-Button" → Code einbetten) hier einfügen. Leer lassen, um keinen Button anzuzeigen.', 'vielbunt' ),
+	) );
+}
+add_action( 'customize_register', 'vielbunt_customize_campaign' );
+
 /* Blöcke registrieren */
 function vielbunt_register_blocks() {
 	$common = array( 'api_version' => 3 );
@@ -780,6 +926,8 @@ function vielbunt_register_blocks() {
 		'render_callback' => 'vielbunt_block_post_hero',
 		'uses_context'    => array( 'postId', 'postType' ),
 	) ) );
+	// Hinweis: Die Spendenkampagne ist KEIN platzierbarer Block – sie wird per
+	// render_block-Filter automatisch hinter den Hero gehängt (s. o.).
 }
 add_action( 'init', 'vielbunt_register_blocks' );
 

@@ -5,7 +5,7 @@ Description: Block-Child-Theme auf Basis von Twenty Twenty-Five für vielbunt e.
 Author: vielbunt e.V. – AK Öffentlichkeitsarbeit
 Author URI: https://www.vielbunt.org
 Template: twentytwentyfive
-Version: 2.0.4
+Version: 2.1.2
 Requires at least: 6.7
 Tested up to: 6.8
 Requires PHP: 7.4
@@ -453,6 +453,55 @@ a:focus-visible, button:focus-visible,
 
 /* Footer-Logo halb so groß wie im Header */
 .vb-logo--white-claim svg { height: 32px; }
+
+/* ── Spendenkampagne (Zielmesser + Spenden-Button, Donorbox) ── */
+.vb-campaign {
+	background: var(--wp--preset--color--cream);
+	padding: 40px 20px;
+}
+.vb-campaign__inner {
+	max-width: 720px;
+	margin: 0 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 18px;
+	text-align: center;
+}
+.vb-campaign__title {
+	margin: 0;
+	color: var(--wp--preset--color--ink);
+	font-weight: 800;
+	font-size: clamp(1.4rem, 3vw, 2rem);
+}
+.vb-campaign__text {
+	margin: 0;
+	color: var(--wp--preset--color--ink);
+	font-weight: 500;
+	max-width: 60ch;
+}
+.vb-campaign__meter {
+	width: 100%;
+}
+/* Donorbox-Zielmesser zentrieren und in der Breite begrenzen.
+   Der Meter wird als iframe eingebettet (only_donation_meter); dbox-widget
+   bleibt als Fallback drin, falls jemand die Widget-Variante einsetzt. */
+.vb-campaign__meter iframe,
+.vb-campaign__meter dbox-widget {
+	display: block;
+	width: 100%;
+	max-width: 480px;
+	margin: 0 auto;
+	border: 0;
+}
+.vb-campaign__cta {
+	display: flex;
+	justify-content: center;
+}
+/* Donorbox-Button: dessen margin-right:auto neutralisieren, damit er mittig sitzt */
+.vb-campaign__cta .dbox-donation-page-button {
+	margin: 0 !important;
+}
 
 /* ── Spectra/UAGB-Icons ──
    Manche Spectra-Icons (Icon-Liste, Timeline-Marker, Marketing-Buttons …)
