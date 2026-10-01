@@ -19,8 +19,10 @@ require_once get_stylesheet_directory() . '/inc/meta.php';
 require_once get_stylesheet_directory() . '/inc/icons.php';
 require_once get_stylesheet_directory() . '/inc/seo.php';
 require_once get_stylesheet_directory() . '/inc/schema.php';
+require_once get_stylesheet_directory() . '/inc/archive.php';
 
 /* Suchmaschinen: Archive raus aus Index und Sitemap, siehe inc/seo.php */
+vbarchive_setup( 'vielbunt' );
 vbseo_setup( array( 'toggle' => false, 'page_excerpt' => false ) );
 require_once get_stylesheet_directory() . '/inc/deploy.php';
 require_once get_stylesheet_directory() . '/inc/once.php';
@@ -34,6 +36,7 @@ new Vielbunt_Theme_Deploy(
 		'once'      => array(
 			'2026-10-fancybox'    => array( 'FancyBox-Plugin abschalten (Theme hat jetzt eine eigene Lightbox)', 'vielbunt_once_disable_fancybox' ),
 			'2026-10-autoptimize' => array( 'Autoptimize: Google Fonts entfernen, kein Preconnect zu Google', 'vielbunt_once_autoptimize_no_gfonts' ),
+			'2026-10-beitragsseite' => array( 'Seite "Alle Beiträge" anlegen und als Beitragsseite setzen', 'vbarchive_once_posts_page' ),
 		),
 	)
 );

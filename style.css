@@ -561,3 +561,73 @@ a:focus-visible, button:focus-visible,
 	.vb-lb__prev, .vb-lb__next { top: auto; bottom: 10px; transform: none; }
 	.vb-lb__img { max-height: calc(100vh - 170px); }
 }
+
+/* Beitragsübersichten (inc/archive.php): Alle Beiträge, Kategorien, Suche */
+.vba-head { margin-bottom: 28px; }
+.vba-title { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; letter-spacing: -1px; line-height: 1.05; margin: 0 0 6px; color: var(--wp--preset--color--ink); }
+.vba-desc { color: #6f6f72; max-width: 60ch; margin: 0 0 6px; }
+.vba-count { color: #9a9a9e; font-weight: 600; font-size: 0.85rem; margin: 0; }
+.vba-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.vba-chip {
+	display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px;
+	border: 2px solid var(--wp--preset--color--pink); color: var(--wp--preset--color--pink);
+	background: #fff; font-weight: 700; font-size: 0.85rem; text-decoration: none; white-space: nowrap;
+}
+.vba-chip:hover { background: var(--wp--preset--color--cream); }
+.vba-chip.is-active { background: var(--wp--preset--color--pink); color: #fff; }
+.vba-search { display: flex; gap: 8px; margin: 14px 0 8px; max-width: 520px; }
+.vba-search input { flex: 1; min-width: 0; padding: 10px 12px; border: 2px solid rgba(54,55,56,0.2); font: inherit; }
+.vba-search button { padding: 0 18px; border: 0; background: var(--wp--preset--color--pink); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+
+.vba-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 20px; }
+.vba-card { min-width: 0; }
+/* 4:5 wie unsere Sharepics. contain statt cover, damit nie etwas abgeschnitten wird */
+.vba-card__media {
+	display: block; aspect-ratio: 4 / 5; overflow: hidden;
+	background: var(--wp--preset--color--cream);
+}
+.vba-card__media img { display: block; width: 100%; height: 100%; object-fit: contain; transition: transform 0.25s ease; }
+.vba-card__media:hover img { transform: scale(1.03); }
+.vba-card__media--text {
+	display: flex; align-items: flex-end; padding: 16px; text-decoration: none; color: #fff;
+	background: var(--wp--preset--color--pink); font-weight: 800; font-size: 1.15rem; line-height: 1.1; letter-spacing: -0.4px;
+}
+.vba-card__media--text.is-blue { background: var(--wp--preset--color--blue); }
+.vba-card__media--text.is-green { background: var(--wp--preset--color--green); }
+.vba-card__media--text.is-purple { background: var(--wp--preset--color--purple); }
+.vba-card__media--text.is-orange { background: var(--wp--preset--color--orange); color: var(--wp--preset--color--ink); }
+.vba-card__media--text.is-ink { background: var(--wp--preset--color--ink); }
+.vba-card__body { padding-top: 10px; }
+.vba-card__cat { display: block; margin-bottom: 4px; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--wp--preset--color--pink); }
+.vba-card__title {
+	margin: 0 0 4px; font-size: 1rem; font-weight: 800; line-height: 1.2; letter-spacing: -0.2px;
+	display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.vba-card__title a { color: var(--wp--preset--color--ink); text-decoration: none; }
+.vba-card__title a:hover { text-decoration: underline; }
+.vba-card__date { font-size: 0.75rem; font-weight: 600; color: #9a9a9e; }
+
+.vba-pages ul { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 52px 0 0; padding: 0; }
+.vba-pages .page-numbers {
+	box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-width: 46px; height: 46px; padding: 0 12px;
+	border: 2px solid rgba(54,55,56,0.15); color: var(--wp--preset--color--ink); background: #fff;
+	font-weight: 700; text-decoration: none;
+}
+.vba-pages a.page-numbers:hover { border-color: var(--wp--preset--color--pink); color: var(--wp--preset--color--pink); }
+.vba-pages .page-numbers.current { background: var(--wp--preset--color--pink); border-color: var(--wp--preset--color--pink); color: #fff; }
+.vba-pages .page-numbers.dots { border-color: transparent; min-width: 24px; padding: 0; }
+.vba-pages .prev, .vba-pages .next { font-weight: 800; }
+
+@media (max-width: 1100px) { .vba-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 781px) {
+	.vba-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; }
+	/* Filter als wischbare Leiste statt fünf Zeilen Knöpfe */
+	.vba-filters { flex-wrap: nowrap; overflow-x: auto; margin-right: calc(-1 * var(--wp--style--root--padding-right, 16px)); padding-bottom: 4px; scrollbar-width: none; }
+	.vba-filters::-webkit-scrollbar { display: none; }
+	.vba-card__title { font-size: 0.92rem; }
+	.vba-pages .page-numbers { min-width: 42px; height: 42px; padding: 0 10px; }
+	.vba-pages li:has(.prev) { order: -2; }
+	.vba-pages li:has(.next) { order: -1; }
+	.vba-pages li:has(.prev), .vba-pages li:has(.next) { flex: 1 1 calc(50% - 3px); }
+	.vba-pages li:has(.prev) .page-numbers, .vba-pages li:has(.next) .page-numbers { width: 100%; }
+}

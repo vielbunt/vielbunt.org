@@ -189,6 +189,14 @@ Kommt ein SEO- oder OG-Plugin dazu, hält sich das Theme automatisch raus.
   abschalten, Autoptimize lässt Google Fonts in Ruhe). Ergebnis unter
   Design → Theme-Updates.
 
+## Beitragsübersichten
+
+„Alle Beiträge" (`/beitraege/`, als Beitragsseite gesetzt), Kategorien,
+Schlagwörter und Suche laufen über `inc/archive.php`: Kacheln im
+Sharepic-Format 4:5 (nichts wird abgeschnitten), Filter-Knöpfe für die
+häufigsten Kategorien, 12 Beiträge pro Seite und eine richtige
+Seitenauswahl. „Zum Blog →" auf der Startseite führt dorthin.
+
 ## Suchmaschinen
 
 - `inc/seo.php` (gleiche Datei wie bei CSD): Kategorie-, Schlagwort-,

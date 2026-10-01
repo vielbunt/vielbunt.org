@@ -267,5 +267,6 @@
 	registerPlain( 'vielbunt/feed',        __( 'vielbunt: News-Feed', 'vielbunt' ),        'list-view' );
 	registerPlain( 'vielbunt/logo',        __( 'vielbunt: Logo', 'vielbunt' ),             'flag', { variant: { type: 'string' } } );
 	registerPlain( 'vielbunt/footerlinks', __( 'vielbunt: Footer-Links', 'vielbunt' ),     'editor-ul' );
+	registerPlain( 'vielbunt/archive',     __( 'vielbunt: Beitragsübersicht', 'vielbunt' ), 'grid-view' );
 
 } )( window.wp.blocks, window.wp.element, window.wp.serverSideRender, window.wp.i18n, window.wp.blockEditor, window.wp.components, window.wp.coreData );
