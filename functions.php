@@ -44,6 +44,7 @@ new Vielbunt_Theme_Deploy(
 			'2026-10-beitragsbilder'   => array( 'Beitragsbilder aus dem ersten eigenen Bild im Text setzen', 'vielbunt_once_thumbs' ),
 			'2026-10-menue'            => array( 'Menü: Beitragsübersicht verlinken', 'vielbunt_once_menu' ),
 			'2026-10-menue-vereinsnews' => array( 'Menü: Vereinsnews unter Neuigkeiten', 'vielbunt_once_menu_vereinsnews' ),
+			'2026-10-kategorien-runde2' => array( 'Kategorien Runde 2: Termin/News getrennt, Jugend (villaQ), Politik & Gesellschaft', 'vielbunt_once_categories_2' ),
 		),
 	)
 );

@@ -49,7 +49,36 @@ function vielbunt_cat( $key ) {
 		'seitrans'       => 32,
 		'polittalk'      => 571,
 	);
-	return isset( $ids[ $key ] ) ? $ids[ $key ] : 0;
+	if ( isset( $ids[ $key ] ) ) {
+		return $ids[ $key ];
+	}
+	// seit Runde 2 (Oktober 2026): per Slug, werden beim Aufräumen angelegt
+	$new = array(
+		'villaq'  => array( 'villaq-jugendarbeit', 'Jugend (villaQ)' ),
+		'politik' => array( 'politik-gesellschaft', 'Politik & Gesellschaft' ),
+	);
+	if ( isset( $new[ $key ] ) ) {
+		$term = get_term_by( 'slug', $new[ $key ][0], 'category' );
+		return $term ? (int) $term->term_id : 0;
+	}
+	return 0;
+}
+
+/* legt die neuen Kategorien an, falls es sie noch nicht gibt */
+function vielbunt_cat_ensure_new() {
+	foreach ( array( array( 'villaq-jugendarbeit', 'Jugend (villaQ)', 'Pädagogische Jugendarbeit in der villaQ, dem queeren Jugendzentrum im Queeren Zentrum.' ), array( 'politik-gesellschaft', 'Politik & Gesellschaft', 'Demos, Mahnwachen, Wahlen, Stellungnahmen, Gedenken und Polittalk.' ) ) as $c ) {
+		if ( ! get_term_by( 'slug', $c[0], 'category' ) ) {
+			wp_insert_term( $c[1], 'category', array( 'slug' => $c[0], 'description' => $c[2] ) );
+		}
+	}
+	// Polittalk gehört unter Politik & Gesellschaft
+	$pol = vielbunt_cat( 'politik' );
+	if ( $pol ) {
+		$talk = get_term( vielbunt_cat( 'polittalk' ), 'category' );
+		if ( $talk && ! is_wp_error( $talk ) && (int) $talk->parent !== $pol ) {
+			wp_update_term( $talk->term_id, 'category', array( 'parent' => $pol ) );
+		}
+	}
 }
 
 /* Thema am Titel erkennen (Kleinbuchstaben) */
@@ -58,7 +87,10 @@ function vielbunt_cat_topic_rules() {
 		'treffbunt' => 'treffbunt',
 		'queerbar'  => 'queerbar',
 		'sul'       => 'schrill\s*(und|&)\s*laut',
-		'jugend'    => 'villa\s?q|jugend|young|kochabend',
+		// Jugendverbandsarbeit (vielbunt Jugend) und pädagogische Jugendarbeit (villaQ) sind zwei Dinge
+		'jugend'    => 'vielbunt[- ]?jugend|vereinsjugend|jugendvorstand|jugendverband|jugendversammlung|jugend-?mitglied|young and proud|jugendkoch|spieleabend der|jugendgruppe|ag[- ]jugend|jugend on ice|jugendausflug|jugendkanu|jugend-themenabend|jugend-workshop|workshop der jugend|jugendkreativ|jugend-karaoke|jugendpicknick|jugendsommerfest|jugendveranstaltung',
+		'villaq'    => 'villa\s?q|jugendzentrum|jugendtreff|jugendarbeit|jugendangebot|jugendbildung|honorarkr|handlungsfeld schule|kinder- und jugendarbeit|jugendführung',
+		'politik'   => '\bdemo\b|demonstration|kundgebung|mahnwache|mahnmal|gedenk|stolperstein|§ ?175|rosa winkel|\bwählt\b|\bwahl(en|check|prüf\w*|kampf)?\b|bundestagswahl|landtagswahl|kommunalwahl|europawahl|partei|landtag|bundestag|kommunalpolitik|idahobit|stellungnahme|offener brief|petition|selbstbestimmungsgesetz|gesetz|polit|\bforderung|menschenrecht|queerfeindlich|homophob|transfeindlich|gegen rechts|\bafd\b|nazi|solidarität mit|verfolgt|gewalt gegen',
 		'sport'     => 'sport\*|lauftreff|radtour|volleyball|badminton|tanzen|tanzkurs|yoga|bouldern|schwimm|salsa|wanderung|laufen\b',
 		'lauftreff' => 'lauftreff',
 		'ausfluege' => 'besuch des csd|ausflug|wanderreise|wanderung|radtour|exkursion|mit vielbunt (zum|zur|nach|in)|gemeinsam (zum|nach)',
@@ -94,7 +126,7 @@ function vielbunt_categorize( $title, $current ) {
 		}
 	}
 	// zusammengehörige Kategorien gleich mitsetzen
-	$pairs = array( array( 'sport', 'sport_akt' ), array( 'sport_akt', 'sport' ), array( 'jugendvorstand', 'jugend' ), array( 'lauftreff', 'sport' ), array( 'treffbunt', 'kultur' ) );
+	$pairs = array( array( 'sport', 'sport_akt' ), array( 'sport_akt', 'sport' ), array( 'jugendvorstand', 'jugend' ), array( 'lauftreff', 'sport' ), array( 'treffbunt', 'kultur' ), array( 'polittalk', 'politik' ) );
 	for ( $round = 0; $round < 2; $round++ ) {
 		foreach ( $pairs as $p ) {
 			if ( in_array( vielbunt_cat( $p[0] ), $new, true ) ) {
@@ -117,6 +149,11 @@ function vielbunt_categorize( $title, $current ) {
 	}
 	if ( in_array( vielbunt_cat( 'presse' ), $new, true ) ) {
 		$new[] = vielbunt_cat( 'news' );
+	}
+	// Termin oder News, nie beides. Fotos, Spendenergebnisse, Berichte sind News
+	if ( in_array( vielbunt_cat( 'veranstaltung' ), $new, true ) && in_array( vielbunt_cat( 'news' ), $new, true ) ) {
+		$news_hint = preg_match( '/die bilder|unsere bilder|\bfotos\b|\bbilder vom|sammelt|starkes zeichen|ist gefragt|danke|bericht|gewählt|regelung|unterstützung für|pressemitteilung/u', $t );
+		$new       = array_diff( $new, array( vielbunt_cat( ( $not_event || $news_hint ) ? 'veranstaltung' : 'news' ) ) );
 	}
 	if ( ! in_array( vielbunt_cat( 'veranstaltung' ), $new, true ) && ! in_array( vielbunt_cat( 'news' ), $new, true ) ) {
 		$new[] = vielbunt_cat( 'news' );
@@ -241,3 +278,52 @@ function vielbunt_once_menu_vereinsnews() {
 	);
 	return $changed ? 'Menü "' . implode( '", "', $changed ) . '": "Vereinsnews" unter "Neuigkeiten" ergänzt' : 'Kein Untermenü "Neuigkeiten" gefunden';
 }
+
+/* Runde 2 (Oktober 2026): Termin/News sauber getrennt, villaQ-Beiträge aus
+   "vielbunt Jugend" in die neue Kategorie "Jugend (villaQ)", neue Kategorie
+   "Politik & Gesellschaft". Genau nach der geprüften Liste, Backup in
+   vielbunt_kategorien_backup_2. */
+function vielbunt_once_categories_2() {
+	vielbunt_cat_ensure_new();
+	$file = __DIR__ . '/data/kategorien-2026-10-runde2.json';
+	$map  = is_readable( $file ) ? json_decode( file_get_contents( $file ), true ) : null;
+	if ( ! is_array( $map ) ) {
+		return 'Datendatei fehlt, nichts geändert';
+	}
+	wp_defer_term_counting( true );
+	$backup = array();
+	$exact  = 0;
+	$rules  = 0;
+	foreach ( $map as $id => $entry ) {
+		$post = get_post( (int) $id );
+		if ( ! $post || 'post' !== $post->post_type ) {
+			continue;
+		}
+		$current = array_map( 'intval', wp_get_post_categories( $post->ID ) );
+		sort( $current );
+		$backup[ $post->ID ] = $current;
+		if ( $current === $entry['old'] ) {
+			$new = array_diff( $current, $entry['remove'] );
+			foreach ( $entry['add'] as $add ) {
+				$new[] = is_int( $add ) ? $add : vielbunt_cat( $add );
+			}
+			$exact++;
+		} else {
+			$new = vielbunt_categorize( $post->post_title, $current );
+			$rules++;
+		}
+		wp_set_post_categories( $post->ID, array_values( array_unique( array_filter( array_map( 'intval', $new ) ) ) ) );
+	}
+	wp_defer_term_counting( false );
+	update_option( 'vielbunt_kategorien_backup_2', $backup, false );
+	return ( $exact + $rules ) . ' Beiträge angepasst (' . $exact . ' wie geprüft, ' . $rules . ' nach Regeln), Backup in vielbunt_kategorien_backup_2';
+}
+
+/* Filter-Knöpfe und Kachel-Etiketten auf vielbunt.org: nur diese Kategorien,
+   in dieser Reihenfolge. Sammel- und Doppelkategorien (Aktuelles, Allgemein,
+   Aktivitäten, sport*aktuell, AG CSD …) bleiben bestehen, tauchen hier aber nicht auf. */
+function vielbunt_visible_categories() {
+	$keys = array( 'news', 'kultur', 'treffbunt', 'queerbar', 'sul', 'sport', 'ausfluege', 'villaq', 'jugend', 'agtrans', 'seitrans', 'politik', 'csd', 'zentrum', 'aidsgala', 'refugees', 'verein' );
+	return array_values( array_filter( array_map( 'vielbunt_cat', $keys ) ) );
+}
+add_filter( 'vbarchive_visible_categories', 'vielbunt_visible_categories' );

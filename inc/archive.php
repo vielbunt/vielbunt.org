@@ -66,6 +66,12 @@ function vbarchive_broad_ids() {
 	return $ids;
 }
 
+/* Optional: feste Liste sichtbarer Kategorien (Reihenfolge = Filter-Knöpfe),
+   vorgegeben vom Theme per Filter. Ohne Liste gilt die 70-%-Regel oben. */
+function vbarchive_visible_ids() {
+	return array_map( 'intval', (array) apply_filters( 'vbarchive_visible_categories', array() ) );
+}
+
 /* Zusätzliche Ansichten auf der Beitragsseite, z. B. bei vielbunt
    "Kommende Termine" (/beitraege/?ansicht=termine). Ein Theme meldet sie per
    Filter an: slug => array( 'label' => ..., 'callback' => ... ). Der Callback
@@ -136,7 +142,30 @@ function vbarchive_filters() {
 			);
 		}
 	}
-	$skip  = vbarchive_broad_ids();
+	$skip    = vbarchive_broad_ids();
+	$visible = vbarchive_visible_ids();
+	if ( $visible ) {
+		// das Theme gibt Auswahl und Reihenfolge vor
+		$terms = array_filter(
+			array_map(
+				function ( $id ) {
+					$t = get_term( $id, 'category' );
+					return ( $t && ! is_wp_error( $t ) && $t->count > 0 ) ? $t : null;
+				},
+				$visible
+			)
+		);
+		foreach ( $terms as $term ) {
+			$active = $term->term_id === $current;
+			$out   .= sprintf(
+				'<a class="vba-chip%s" href="%s"%s>%s</a>',
+				$active ? ' is-active' : '',
+				esc_url( get_term_link( $term ) ),
+				$active ? ' aria-current="page"' : '',
+				esc_html( $term->name )
+			);
+		}
+	} else {
 	$terms = get_terms(
 		array(
 			'taxonomy'   => 'category',
@@ -166,6 +195,7 @@ function vbarchive_filters() {
 			);
 			$shown++;
 		}
+	}
 	}
 	// aktuelle Kategorie, falls sie nicht unter den häufigsten ist
 	if ( $current && false === strpos( $out, 'is-active' ) ) {
@@ -204,8 +234,9 @@ function vbarchive_card( $post, $i, $badge = '' ) {
 	// Etikett: die spezifischste Kategorie (die mit den wenigsten Beiträgen)
 	$cat   = '';
 	$best  = PHP_INT_MAX;
+	$visible = vbarchive_visible_ids();
 	foreach ( get_the_category( $post->ID ) as $c ) {
-		if ( in_array( (int) $c->term_id, vbarchive_broad_ids(), true ) || in_array( $c->slug, array( 'uncategorized', 'allgemein' ), true ) ) {
+		if ( $visible ? ! in_array( (int) $c->term_id, $visible, true ) : ( in_array( (int) $c->term_id, vbarchive_broad_ids(), true ) || in_array( $c->slug, array( 'uncategorized', 'allgemein' ), true ) ) ) {
 			continue;
 		}
 		if ( $c->count < $best ) {
