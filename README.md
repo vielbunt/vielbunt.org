@@ -176,6 +176,19 @@ Vorschau in WhatsApp, Signal, Instagram & Co. Als Bild nehmen wir das
 Beitragsbild, sonst das erste Bild im Beitrag, sonst `assets/share.png`.
 Kommt ein SEO- oder OG-Plugin dazu, hält sich das Theme automatisch raus.
 
+## Lightbox, Icons, einmalige Schritte
+
+- **Lightbox:** `assets/lightbox.js` (ohne jQuery) öffnet jeden Link auf eine
+  Bilddatei, mit Pfeilen, Tasten und Wischen durch Galerie bzw. Beitrag.
+  Bildblöcke ohne Link nutzen die Lightbox von WordPress (in `theme.json`
+  eingeschaltet). Das alte FancyBox-Plugin braucht es nicht mehr.
+- **Icons:** Favicon und App-Icons liegen in `assets/icons` und ersetzen das
+  Website-Icon aus dem Customizer.
+- **Einmalige Schritte:** `inc/once.php` enthält Dinge, die nach einem Update
+  genau einmal auf dem Server passieren sollen (z. B. FancyBox-Plugin
+  abschalten, Autoptimize lässt Google Fonts in Ruhe). Ergebnis unter
+  Design → Theme-Updates.
+
 ## Farben und Schrift
 
 Unter Design → Editor → Stile liegt die vielbunt-Palette mit allen sechs

@@ -16,7 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once get_stylesheet_directory() . '/inc/frontpage.php';
 require_once get_stylesheet_directory() . '/inc/meta.php';
+require_once get_stylesheet_directory() . '/inc/icons.php';
 require_once get_stylesheet_directory() . '/inc/deploy.php';
+require_once get_stylesheet_directory() . '/inc/once.php';
 
 /* Updates direkt aus GitHub, siehe inc/deploy.php und Design > Theme-Updates */
 new Vielbunt_Theme_Deploy(
@@ -24,6 +26,10 @@ new Vielbunt_Theme_Deploy(
 		'repo'      => 'vielbunt/vielbunt.org',
 		'namespace' => 'vielbunt/v1',
 		'prefix'    => 'vielbunt',
+		'once'      => array(
+			'2026-10-fancybox'    => array( 'FancyBox-Plugin abschalten (Theme hat jetzt eine eigene Lightbox)', 'vielbunt_once_disable_fancybox' ),
+			'2026-10-autoptimize' => array( 'Autoptimize: Google Fonts entfernen, kein Preconnect zu Google', 'vielbunt_once_autoptimize_no_gfonts' ),
+		),
 	)
 );
 
@@ -47,6 +53,14 @@ function vielbunt_enqueue_styles() {
 		array(),
 		wp_get_theme()->get( 'Version' ),
 		true
+	);
+	/* ersetzt das alte FancyBox-Plugin, ohne jQuery */
+	wp_enqueue_script(
+		'vielbunt-lightbox',
+		get_stylesheet_directory_uri() . '/assets/lightbox.js',
+		array(),
+		wp_get_theme()->get( 'Version' ),
+		array( 'in_footer' => true, 'strategy' => 'defer' )
 	);
 }
 add_action( 'wp_enqueue_scripts', 'vielbunt_enqueue_styles' );

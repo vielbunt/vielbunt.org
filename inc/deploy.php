@@ -32,15 +32,18 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 		private $ns;
 		private $prefix;
 		private $slug;
+		private $once;
 
 		/**
-		 * @param array $args repo (owner/name), namespace (REST, z. B. csd/v1), prefix (für Optionsnamen).
+		 * @param array $args repo (owner/name), namespace (REST, z. B. csd/v1), prefix (für Optionsnamen),
+		 *                    once (optional): einmalige Schritte, id => array( Beschreibung, callable ).
 		 */
 		public function __construct( $args ) {
 			$this->repo   = $args['repo'];
 			$this->ns     = $args['namespace'];
 			$this->prefix = $args['prefix'];
 			$this->slug   = get_stylesheet();
+			$this->once   = isset( $args['once'] ) ? (array) $args['once'] : array();
 
 			add_filter( 'pre_set_site_transient_update_themes', array( $this, 'inject_update' ) );
 			add_filter( 'auto_update_theme', array( $this, 'auto_update' ), 10, 2 );
@@ -48,8 +51,45 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 			add_action( 'rest_api_init', array( $this, 'register_route' ) );
 			add_action( 'admin_menu', array( $this, 'admin_menu' ) );
 			add_action( 'admin_post_' . $this->prefix . '_deploy', array( $this, 'admin_action' ) );
+			add_action( 'init', array( $this, 'run_once' ), 98 );
 			add_action( 'init', array( $this, 'purge_after_update' ), 99 );
 		}
+
+		/* ---------- Einmalige Schritte ---------- */
+
+		/* Für Dinge, die nach einem Update genau einmal auf dem Server passieren
+		   sollen (z. B. ein Plugin abschalten, das das Theme jetzt selbst
+		   erledigt). Jeder Schritt wird VOR dem Ausführen als erledigt markiert,
+		   damit ein Fehler nie bei jedem Seitenaufruf neu knallt. Ergebnis steht
+		   unter Design > Theme-Updates. */
+		public function run_once() {
+			if ( empty( $this->once ) ) {
+				return;
+			}
+			$key  = $this->prefix . '_once_log';
+			$done = get_option( $key, array() );
+			$done = is_array( $done ) ? $done : array();
+			$ran  = false;
+			foreach ( $this->once as $id => $step ) {
+				if ( isset( $done[ $id ] ) || ! is_array( $step ) || ! is_callable( $step[1] ) ) {
+					continue;
+				}
+				$done[ $id ] = array( 'time' => time(), 'label' => (string) $step[0], 'result' => 'läuft' );
+				update_option( $key, $done, false );
+				try {
+					$result = call_user_func( $step[1] );
+				} catch ( \Throwable $e ) {
+					$result = 'Fehler: ' . $e->getMessage();
+				}
+				$done[ $id ]['result'] = is_string( $result ) ? $result : 'erledigt';
+				update_option( $key, $done, false );
+				$ran = true;
+			}
+			if ( $ran ) {
+				$this->purge_caches();
+			}
+		}
+
 
 		/* ---------- Release-Infos aus GitHub ---------- */
 
@@ -415,6 +455,23 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 					}
 					?>
 				</p>
+
+				<?php $once = get_option( $this->prefix . '_once_log', array() ); ?>
+				<?php if ( ! empty( $once ) && is_array( $once ) ) : ?>
+					<h2>Einmalige Schritte</h2>
+					<table class="widefat striped" style="max-width:820px">
+						<thead><tr><th>Zeit</th><th>Schritt</th><th>Ergebnis</th></tr></thead>
+						<tbody>
+						<?php foreach ( $once as $e ) : ?>
+							<tr>
+								<td><?php echo esc_html( wp_date( 'd.m.Y H:i', $e['time'] ) ); ?></td>
+								<td><?php echo esc_html( $e['label'] ); ?></td>
+								<td><?php echo esc_html( $e['result'] ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+				<?php endif; ?>
 
 				<h2>Letzte Läufe</h2>
 				<?php if ( empty( $log ) ) : ?>
