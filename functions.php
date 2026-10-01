@@ -259,6 +259,45 @@ function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
 	);
 }
 
+/* Alle kommenden Termine für die Ansicht "Kommende Termine" auf der
+   Beitragsseite (/beitraege/?ansicht=termine). Gleiche Datumserkennung wie
+   auf der Startseite, nur ohne Begrenzung auf 8 Kacheln. */
+function vielbunt_upcoming_events() {
+	$query = new WP_Query(
+		array(
+			'post_type'           => 'post',
+			'post_status'         => 'publish',
+			'posts_per_page'      => 300,
+			'ignore_sticky_posts' => true,
+			'no_found_rows'       => true,
+		)
+	);
+	$today  = strtotime( 'today', current_time( 'timestamp' ) );
+	$events = array();
+	foreach ( $query->posts as $post ) {
+		$parsed = vielbunt_parse_event_date( $post->post_title, $post );
+		if ( $parsed && $parsed['timestamp'] >= $today ) {
+			$events[] = array( 'post' => $post, 'badge' => $parsed['date_label'], 'ts' => $parsed['timestamp'] );
+		}
+	}
+	usort(
+		$events,
+		static function ( $a, $b ) {
+			return $a['ts'] <=> $b['ts'];
+		}
+	);
+	return $events;
+}
+
+function vielbunt_archive_views( $views ) {
+	$views['termine'] = array(
+		'label'    => 'Kommende Termine',
+		'callback' => 'vielbunt_upcoming_events',
+	);
+	return $views;
+}
+add_filter( 'vbarchive_views', 'vielbunt_archive_views' );
+
 function vielbunt_card_color( $index ) {
 	$colors = array( 'pink', 'blue', 'green', 'purple', 'orange', 'ink' );
 	return $colors[ $index % count( $colors ) ];

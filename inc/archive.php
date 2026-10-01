@@ -46,7 +46,52 @@ function vbarchive_posts_page_url() {
 	return $id ? get_permalink( $id ) : '';
 }
 
+/* Kategorien, die an fast allen Beiträgen hängen ("Aktuelles", "Allgemein",
+   bei CSD "News"), sagen nichts aus. Die tauchen weder als Filter noch als
+   Etikett auf der Kachel auf. Grenze: mehr als 70 % aller Beiträge. */
+function vbarchive_broad_ids() {
+	static $ids = null;
+	if ( null !== $ids ) {
+		return $ids;
+	}
+	$ids   = array( (int) get_option( 'default_category' ) );
+	$total = (int) wp_count_posts( 'post' )->publish;
+	if ( $total > 20 ) {
+		foreach ( get_terms( array( 'taxonomy' => 'category', 'hide_empty' => true ) ) as $term ) {
+			if ( $term->count > 0.7 * $total ) {
+				$ids[] = (int) $term->term_id;
+			}
+		}
+	}
+	return $ids;
+}
+
+/* Zusätzliche Ansichten auf der Beitragsseite, z. B. bei vielbunt
+   "Kommende Termine" (/beitraege/?ansicht=termine). Ein Theme meldet sie per
+   Filter an: slug => array( 'label' => ..., 'callback' => ... ). Der Callback
+   liefert eine Liste aus array( 'post' => WP_Post, 'badge' => '18.10.' ). */
+function vbarchive_views() {
+	return (array) apply_filters( 'vbarchive_views', array() );
+}
+
+function vbarchive_current_view() {
+	if ( ! is_home() || empty( $_GET['ansicht'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+		return '';
+	}
+	$view = sanitize_key( wp_unslash( $_GET['ansicht'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+	return isset( vbarchive_views()[ $view ] ) ? $view : '';
+}
+
+function vbarchive_view_url( $view ) {
+	$all = vbarchive_posts_page_url();
+	return $all ? add_query_arg( 'ansicht', $view, $all ) : '';
+}
+
 function vbarchive_title() {
+	$view = vbarchive_current_view();
+	if ( $view ) {
+		return vbarchive_views()[ $view ]['label'];
+	}
 	if ( is_home() ) {
 		$id = (int) get_option( 'page_for_posts' );
 		return $id ? get_the_title( $id ) : 'Alle Beiträge';
@@ -71,29 +116,41 @@ function vbarchive_filters() {
 	$current = ( is_category() ) ? get_queried_object_id() : 0;
 	$all_url = vbarchive_posts_page_url();
 	$out     = '';
+	$view    = vbarchive_current_view();
 	if ( $all_url ) {
-		$out .= sprintf(
+		$all_active = is_home() && ! $view;
+		$out       .= sprintf(
 			'<a class="vba-chip%s" href="%s"%s>Alle</a>',
-			is_home() ? ' is-active' : '',
+			$all_active ? ' is-active' : '',
 			esc_url( $all_url ),
-			is_home() ? ' aria-current="page"' : ''
+			$all_active ? ' aria-current="page"' : ''
 		);
+		foreach ( vbarchive_views() as $slug => $v ) {
+			$active = $view === $slug;
+			$out   .= sprintf(
+				'<a class="vba-chip vba-chip--view%s" href="%s"%s>%s</a>',
+				$active ? ' is-active' : '',
+				esc_url( vbarchive_view_url( $slug ) ),
+				$active ? ' aria-current="page"' : '',
+				esc_html( $v['label'] )
+			);
+		}
 	}
-	$skip  = array( (int) get_option( 'default_category' ) );
+	$skip  = vbarchive_broad_ids();
 	$terms = get_terms(
 		array(
 			'taxonomy'   => 'category',
 			'parent'     => 0,
 			'orderby'    => 'count',
 			'order'      => 'DESC',
-			'number'     => 10,
+			'number'     => 14,
 			'hide_empty' => true,
 		)
 	);
 	$shown = 0;
 	if ( ! is_wp_error( $terms ) ) {
 		foreach ( $terms as $term ) {
-			if ( in_array( $term->term_id, $skip, true ) || in_array( $term->slug, array( 'uncategorized', 'allgemein' ), true ) ) {
+			if ( in_array( (int) $term->term_id, $skip, true ) || in_array( $term->slug, array( 'uncategorized', 'allgemein' ), true ) ) {
 				continue;
 			}
 			if ( $shown >= 7 && $term->term_id !== $current ) {
@@ -141,15 +198,19 @@ function vbarchive_image( $post ) {
 	return '';
 }
 
-function vbarchive_card( $post, $i ) {
-	$url    = get_permalink( $post );
-	$title  = get_the_title( $post );
-	$cats   = get_the_category( $post->ID );
-	$cat    = '';
-	foreach ( $cats as $c ) {
-		if ( ! in_array( $c->slug, array( 'uncategorized', 'allgemein' ), true ) ) {
-			$cat = $c->name;
-			break;
+function vbarchive_card( $post, $i, $badge = '' ) {
+	$url   = get_permalink( $post );
+	$title = get_the_title( $post );
+	// Etikett: die spezifischste Kategorie (die mit den wenigsten Beiträgen)
+	$cat   = '';
+	$best  = PHP_INT_MAX;
+	foreach ( get_the_category( $post->ID ) as $c ) {
+		if ( in_array( (int) $c->term_id, vbarchive_broad_ids(), true ) || in_array( $c->slug, array( 'uncategorized', 'allgemein' ), true ) ) {
+			continue;
+		}
+		if ( $c->count < $best ) {
+			$best = $c->count;
+			$cat  = $c->name;
 		}
 	}
 	$img    = vbarchive_image( $post );
@@ -168,11 +229,16 @@ function vbarchive_card( $post, $i ) {
 		);
 	}
 
+	if ( '' !== $badge ) {
+		$media = str_replace( '" tabindex="-1" aria-hidden="true">', '" tabindex="-1" aria-hidden="true"><span class="vba-card__badge">' . esc_html( $badge ) . '</span>', $media );
+	}
+
 	return '<article class="vba-card">' . $media
 		. '<div class="vba-card__body">'
 		. ( $cat ? '<span class="vba-card__cat">' . esc_html( $cat ) . '</span>' : '' )
 		. '<h2 class="vba-card__title"><a href="' . esc_url( $url ) . '">' . esc_html( $title ) . '</a></h2>'
-		. '<time class="vba-card__date" datetime="' . esc_attr( get_the_date( 'c', $post ) ) . '">' . esc_html( get_the_date( 'j. F Y', $post ) ) . '</time>'
+		// bei Terminen steht das Termindatum schon oben auf dem Bild, das Veröffentlichungsdatum würde nur verwirren
+		. ( '' === $badge ? '<time class="vba-card__date" datetime="' . esc_attr( get_the_date( 'c', $post ) ) . '">' . esc_html( get_the_date( 'j. F Y', $post ) ) . '</time>' : '' )
 		. '</div></article>';
 }
 
@@ -197,40 +263,60 @@ function vbarchive_pagination( $query ) {
 	return '<nav class="vba-pages" aria-label="Seiten"><ul><li>' . implode( '</li><li>', $links ) . '</li></ul></nav>';
 }
 
+function vbarchive_search_form() {
+	return '<form class="vba-search" role="search" method="get" action="' . esc_url( home_url( '/' ) ) . '">'
+		. '<label class="screen-reader-text" for="vba-s">Beiträge durchsuchen</label>'
+		. '<input id="vba-s" type="search" name="s" placeholder="Beiträge durchsuchen" value="' . esc_attr( get_search_query() ) . '" />'
+		. '<button type="submit">Suchen</button></form>';
+}
+
 function vbarchive_render() {
 	global $wp_query;
 	// Im Editor gibt es keine Archiv-Abfrage, da zeigen wir einfach die neusten Beiträge
 	$preview = ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || is_admin();
-	$query   = $preview
-		? new WP_Query( array( 'post_type' => 'post', 'posts_per_page' => 8, 'ignore_sticky_posts' => true, 'no_found_rows' => true ) )
-		: $wp_query;
+	$view    = $preview ? '' : vbarchive_current_view();
+	$items   = array();
+	if ( $view ) {
+		$items = (array) call_user_func( vbarchive_views()[ $view ]['callback'] );
+		$query = null;
+	} else {
+		$query = $preview
+			? new WP_Query( array( 'post_type' => 'post', 'posts_per_page' => 8, 'ignore_sticky_posts' => true, 'no_found_rows' => true ) )
+			: $wp_query;
+		foreach ( $query->posts as $post ) {
+			$items[] = array( 'post' => $post, 'badge' => '' );
+		}
+	}
+	$count = $view ? count( $items ) : ( $preview ? 0 : (int) $query->found_posts );
 
 	$out  = '<div class="vba">';
-	$out .= '<header class="vba-head">';
+	$out .= '<header class="vba-head"><div class="vba-head__top"><div>';
 	$out .= '<h1 class="vba-title">' . esc_html( $preview ? 'Beiträge' : vbarchive_title() ) . '</h1>';
+	if ( $count ) {
+		$out .= '<p class="vba-count">' . esc_html( sprintf( 1 === $count ? '%s Beitrag' : '%s Beiträge', number_format_i18n( $count ) ) ) . '</p>';
+	}
+	$out .= '</div>';
+	if ( ! $preview ) {
+		$out .= vbarchive_search_form();
+	}
+	$out .= '</div>';
 	if ( ! $preview && ( is_category() || is_tag() ) && term_description() ) {
 		$out .= '<div class="vba-desc">' . wp_kses_post( term_description() ) . '</div>';
-	}
-	if ( ! $preview && is_search() ) {
-		$out .= '<form class="vba-search" role="search" method="get" action="' . esc_url( home_url( '/' ) ) . '"><label class="screen-reader-text" for="vba-s">Suchen</label><input id="vba-s" type="search" name="s" value="' . esc_attr( get_search_query() ) . '" /><button type="submit">Suchen</button></form>';
-	}
-	if ( ! $preview && $query->found_posts ) {
-		$out .= '<p class="vba-count">' . esc_html( sprintf( 1 === (int) $query->found_posts ? '%s Beitrag' : '%s Beiträge', number_format_i18n( $query->found_posts ) ) ) . '</p>';
 	}
 	$out .= vbarchive_filters();
 	$out .= '</header>';
 
-	if ( empty( $query->posts ) ) {
-		$out .= '<p class="vb-empty">Hier gibt es leider keine Beiträge.</p></div>';
+	if ( empty( $items ) ) {
+		$out .= '<p class="vb-empty">' . ( $view ? 'Gerade stehen keine Termine an.' : 'Hier gibt es leider keine Beiträge.' ) . '</p></div>';
 		return $out;
 	}
 
 	$out .= '<div class="vba-grid">';
-	foreach ( $query->posts as $i => $post ) {
-		$out .= vbarchive_card( $post, $i );
+	foreach ( $items as $i => $item ) {
+		$out .= vbarchive_card( $item['post'], $i, isset( $item['badge'] ) ? $item['badge'] : '' );
 	}
 	$out .= '</div>';
-	if ( ! $preview ) {
+	if ( ! $preview && ! $view ) {
 		$out .= vbarchive_pagination( $query );
 	}
 	$out .= '</div>';
@@ -306,7 +392,12 @@ function vbarchive_frontpage_links( $content, $block ) {
 		return $content;
 	}
 	$url = vbarchive_posts_page_url();
-	if ( ! $url || ! preg_match( '/>\s*(Alle Beiträge|Zum Blog)\s*→\s*</u', $content ) ) {
+	if ( ! $url ) {
+		return $content;
+	}
+	if ( isset( vbarchive_views()['termine'] ) && preg_match( '/>\s*Alle Termine\s*→\s*</u', $content ) ) {
+		$url = vbarchive_view_url( 'termine' );
+	} elseif ( ! preg_match( '/>\s*(Alle Beiträge|Zum Blog)\s*→\s*</u', $content ) ) {
 		return $content;
 	}
 	return preg_replace( '/href="[^"]*"/', 'href="' . esc_url( $url ) . '"', $content, 1 );

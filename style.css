@@ -576,6 +576,18 @@ a:focus-visible, button:focus-visible,
 .vba-chip:hover { background: var(--wp--preset--color--cream); }
 .vba-chip.is-active { background: var(--wp--preset--color--pink); color: #fff; }
 .vba-search { display: flex; gap: 8px; margin: 14px 0 8px; max-width: 520px; }
+.vba-head__top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.vba-head__top .vba-search { margin: 0 0 4px; width: 100%; max-width: 340px; }
+.vba-search input { font-size: 0.95rem; }
+.vba-chip--view { border-style: dashed; }
+.vba-chip--view.is-active { border-style: solid; }
+.vba-card__media { position: relative; }
+.vba-card__badge {
+	position: absolute; top: 0; left: 0; z-index: 1; padding: 5px 10px;
+	background: #fff; color: var(--wp--preset--color--pink); font-weight: 800; font-size: 0.85rem; letter-spacing: -0.3px;
+}
+@media (max-width: 781px) { .vba-head__top .vba-search { max-width: none; } }
+
 .vba-search input { flex: 1; min-width: 0; padding: 10px 12px; border: 2px solid rgba(54,55,56,0.2); font: inherit; }
 .vba-search button { padding: 0 18px; border: 0; background: var(--wp--preset--color--pink); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 
