@@ -19,7 +19,7 @@ env:
   THEME_SLUG: vielbuntzweinull
   SITE_URL: https://www.vielbunt.org
   REST_NAMESPACE: vielbunt/v1
-  SMOKE_MARKERS: "vb-hero vb-quick vb-tile"
+  SMOKE_MARKERS: "vb-hero vb-quick vb-tile og:image"
 
 jobs:
   test:

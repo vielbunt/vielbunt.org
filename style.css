@@ -128,7 +128,6 @@ Text Domain: vielbunt
 .vb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 @media (max-width: 781px) {
 	.vb-grid { grid-template-columns: repeat(2, 1fr); }
-	.vb-grid--quick .vb-tile:nth-child(n+7) { display: none; }
 }
 
 /* Schnellzugriff-Kacheln */

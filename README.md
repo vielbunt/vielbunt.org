@@ -168,6 +168,14 @@ dem angepassten Template und aus `vielbunt_block_settings` übernommen
 ein paar alte HTML-Kommentare aus dem front-page-Template, wegen denen der
 Editor die `<main>`-Gruppe als „ungültiger Inhalt" markiert hat.
 
+## Beschreibung und Link-Vorschau
+
+`inc/meta.php` setzt eine Meta-Beschreibung (Startseite: Leadtext aus dem
+Hero, Beiträge: Auszug oder Textanfang) und Open-Graph-Tags für die
+Vorschau in WhatsApp, Signal, Instagram & Co. Als Bild nehmen wir das
+Beitragsbild, sonst das erste Bild im Beitrag, sonst `assets/share.png`.
+Kommt ein SEO- oder OG-Plugin dazu, hält sich das Theme automatisch raus.
+
 ## Farben und Schrift
 
 Unter Design → Editor → Stile liegt die vielbunt-Palette mit allen sechs

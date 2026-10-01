@@ -15,6 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once get_stylesheet_directory() . '/inc/frontpage.php';
+require_once get_stylesheet_directory() . '/inc/meta.php';
 require_once get_stylesheet_directory() . '/inc/deploy.php';
 
 /* Updates direkt aus GitHub, siehe inc/deploy.php und Design > Theme-Updates */
@@ -554,9 +555,8 @@ function vielbunt_block_footerlinks( $attributes = array() ) {
 	$links = array(
 		array( 'Datenschutzerklärung', 'https://www.vielbunt.org/datenschutzerklaerung/' ),
 		array( 'Impressum',            'https://www.vielbunt.org/impressum/' ),
-		array( 'Login',                'http://www.vielbunt.org/wp-login.php' ),
 		array( 'Kontakt',              'https://www.vielbunt.org/kontakt-zu-vielbunt/' ),
-		array( 'vielbunt Shop',        'http://shop.spreadshirt.de/vielbunt/' ),
+		array( 'vielbunt Shop',        'https://shop.spreadshirt.de/vielbunt/' ),
 		array( 'Spenden',              'https://www.vielbunt.org/spenden/' ),
 		array( 'Karriere',             'https://vielbunt.jacando.io/career/' ),
 	);
