@@ -58,3 +58,55 @@ function vielbunt_once_autoptimize_no_gfonts() {
 	return 'Google Fonts: Einstellung ' . $before . ' auf 2 (entfernen)'
 		. ( $removed ? ', Preconnect entfernt: ' . implode( ', ', $removed ) : '' );
 }
+
+/* Untermenü in allen Navigationen bearbeiten. $label = aktuelle Beschriftung
+   des Untermenüs, $edit bekommt den Block (Array aus parse_blocks) und gibt
+   ihn verändert zurück. Gespeichert wird direkt per $wpdb (kein Filter fasst
+   den Inhalt an), der alte Inhalt landet als Backup in $backup_option. */
+function vielbunt_once_edit_submenu( $label, $edit, $backup_option ) {
+	global $wpdb;
+	$navs    = get_posts( array( 'post_type' => 'wp_navigation', 'post_status' => 'publish', 'posts_per_page' => -1 ) );
+	$changed = array();
+	$backup  = array();
+	$walk    = function ( $blocks ) use ( &$walk, $label, $edit ) {
+		foreach ( $blocks as $i => $block ) {
+			$name = isset( $block['attrs']['label'] ) ? trim( wp_strip_all_tags( html_entity_decode( $block['attrs']['label'], ENT_QUOTES, 'UTF-8' ) ) ) : '';
+			if ( 'core/navigation-submenu' === $block['blockName'] && $name === $label ) {
+				$blocks[ $i ] = $edit( $block );
+			} elseif ( ! empty( $block['innerBlocks'] ) ) {
+				$blocks[ $i ]['innerBlocks'] = $walk( $block['innerBlocks'] );
+			}
+		}
+		return $blocks;
+	};
+	foreach ( $navs as $nav ) {
+		$content = serialize_blocks( $walk( parse_blocks( $nav->post_content ) ) );
+		if ( $content !== serialize_blocks( parse_blocks( $nav->post_content ) ) ) {
+			$backup[ $nav->ID ] = $nav->post_content;
+			$wpdb->update( $wpdb->posts, array( 'post_content' => $content ), array( 'ID' => $nav->ID ) );
+			clean_post_cache( $nav->ID );
+			$changed[] = $nav->post_title;
+		}
+	}
+	if ( $backup ) {
+		update_option( $backup_option, $backup, false );
+	}
+	return $changed;
+}
+
+/* Hilfsfunktion: Menüpunkt-Block bauen */
+function vielbunt_once_nav_link( $label, $url, $page_id = 0 ) {
+	$attrs = array( 'label' => $label, 'url' => $url, 'kind' => $page_id ? 'post-type' : 'custom', 'type' => $page_id ? 'page' : 'custom' );
+	if ( $page_id ) {
+		$attrs['id'] = (int) $page_id;
+	}
+	return array( 'blockName' => 'core/navigation-link', 'attrs' => $attrs, 'innerBlocks' => array(), 'innerHTML' => '', 'innerContent' => array() );
+}
+
+/* innere Blöcke ersetzen und innerContent passend dazu setzen */
+function vielbunt_once_set_children( $block, $children ) {
+	$block['innerBlocks']  = array_values( $children );
+	$block['innerContent'] = array_fill( 0, count( $children ), null );
+	$block['innerHTML']    = '';
+	return $block;
+}

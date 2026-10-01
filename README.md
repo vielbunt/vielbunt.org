@@ -197,6 +197,19 @@ Sharepic-Format 4:5 (nichts wird abgeschnitten), Filter-Knöpfe für die
 häufigsten Kategorien, 12 Beiträge pro Seite und eine richtige
 Seitenauswahl. „Zum Blog →" auf der Startseite führt dorthin.
 
+## Kategorien und Beitragsbilder
+
+- `inc/categorize.php`: Neue Beiträge (von Hand oder vom Postergenerator)
+  bekommen beim Veröffentlichen/Einplanen automatisch Art (Veranstaltung
+  bei Datum im Titel, sonst News) und Thema (Treffbunt, villaQ/Jugend,
+  Queerbar, Sport, Ausflüge …) nach Titel. Es wird nur ergänzt. Im Oktober
+  2026 wurden alle Beiträge einmalig so aufgeräumt (Backup in der Option
+  `vielbunt_kategorien_backup`).
+- `inc/thumbnails.php`: Fehlt ein Beitragsbild, wird das erste Bild aus der
+  eigenen Mediathek im Text genommen.
+- Termine (Datum im Titel) melden Google auf der Beitragsseite eine
+  Veranstaltung (`inc/schema.php`), mit Adresse nur beim Queeren Zentrum.
+
 ## Suchmaschinen
 
 - `inc/seo.php` (gleiche Datei wie bei CSD): Kategorie-, Schlagwort-,

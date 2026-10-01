@@ -20,6 +20,8 @@ require_once get_stylesheet_directory() . '/inc/icons.php';
 require_once get_stylesheet_directory() . '/inc/seo.php';
 require_once get_stylesheet_directory() . '/inc/schema.php';
 require_once get_stylesheet_directory() . '/inc/archive.php';
+require_once get_stylesheet_directory() . '/inc/categorize.php';
+require_once get_stylesheet_directory() . '/inc/thumbnails.php';
 
 /* Suchmaschinen: Archive raus aus Index und Sitemap, siehe inc/seo.php */
 vbarchive_setup( 'vielbunt' );
@@ -38,9 +40,17 @@ new Vielbunt_Theme_Deploy(
 			'2026-10-autoptimize' => array( 'Autoptimize: Google Fonts entfernen, kein Preconnect zu Google', 'vielbunt_once_autoptimize_no_gfonts' ),
 			'2026-10-beitragsseite' => array( 'Seite "Alle Beiträge" anlegen und als Beitragsseite setzen', 'vbarchive_once_posts_page' ),
 			'2026-10-startseite-statisch' => array( 'Einstellungen > Lesen: statische Startseite, damit die Beitragsseite greift', 'vbarchive_once_static_front' ),
+			'2026-10-kategorien-neu'   => array( 'Kategorien aufräumen (wie geprüft) und neue Themen-Kategorien', 'vielbunt_once_categories' ),
+			'2026-10-beitragsbilder'   => array( 'Beitragsbilder aus dem ersten eigenen Bild im Text setzen', 'vielbunt_once_thumbs' ),
+			'2026-10-menue'            => array( 'Menü: Beitragsübersicht verlinken', 'vielbunt_once_menu' ),
 		),
 	)
 );
+
+/* Hülle für den einmaligen Beitragsbild-Schritt (inc/thumbnails.php) */
+function vielbunt_once_thumbs() {
+	return vbthumb_once_backfill( 'vielbunt' );
+}
 
 /* Stylesheets laden */
 function vielbunt_enqueue_styles() {
@@ -118,13 +128,15 @@ add_action( 'enqueue_block_assets', 'vielbunt_enqueue_fonts' );
    "28.05. · 19:00 treffbunt" -> 28. Mai
    "01.06.-05.06.2026 Woche"  -> Startdatum 1. Juni */
 function vielbunt_parse_event_date( $title, $post = null ) {
-	$title   = trim( wp_strip_all_tags( $title ) );
-	$pattern = '/^\s*(\d{1,2})\.(\d{1,2})\.(?:\s*[-\x{2013}]\s*\d{1,2}\.\d{1,2}\.)?(\d{4})?/u';
+	$title = trim( wp_strip_all_tags( $title ) );
 
-	if ( ! preg_match( $pattern, $title, $m ) ) {
+	// "05.-09.10." (Zeitraum im selben Monat) -> Start 5. Oktober
+	if ( preg_match( '/^\s*(\d{1,2})\.\s*[-\x{2013}]\s*\d{1,2}\.(\d{1,2})\.(\d{4}|\d{2}(?!\d))?/u', $title, $r ) ) {
+		$m = array( $r[0], $r[1], $r[2], isset( $r[3] ) ? $r[3] : '' );
+	} elseif ( ! preg_match( '/^\s*(\d{1,2})\.(\d{1,2})\.(?:\s*[-\x{2013}]\s*\d{1,2}\.\d{1,2}\.)?(\d{4}|\d{2}(?!\d))?/u', $title, $m ) ) {
+		// "06.06.: Museumsbesuch", "28.05. · 19:00 treffbunt", "01.06.-05.06.2026 Woche", "15.08.26: villaQ"
 		return null;
 	}
-
 	$day   = (int) $m[1];
 	$month = (int) $m[2];
 	if ( $month < 1 || $month > 12 || $day < 1 || $day > 31 ) {
@@ -133,6 +145,9 @@ function vielbunt_parse_event_date( $title, $post = null ) {
 
 	if ( ! empty( $m[3] ) ) {
 		$year = (int) $m[3];
+		if ( $year < 100 ) {
+			$year += 2000;
+		}
 	} else {
 		// Veröffentlichungsdatum als Referenz nehmen, nicht das heutige Datum.
 		// Sonst würde ein alter Post mit "22.10." vom Oktober 2025 plötzlich
@@ -157,7 +172,7 @@ function vielbunt_parse_event_date( $title, $post = null ) {
 	}
 
 	$clean = preg_replace(
-		'/^\s*\d{1,2}\.\d{1,2}\.(?:\s*[-\x{2013}]\s*\d{1,2}\.\d{1,2}\.)?(?:\d{4})?\s*(?:[:\x{00B7}\-\x{2013}|]\s*)?/u',
+		'/^\s*\d{1,2}\.(?:\s*[-\x{2013}]\s*\d{1,2}\.)?\d{1,2}\.(?:\s*[-\x{2013}]\s*\d{1,2}\.\d{1,2}\.)?(?:\d{4}|\d{2}(?!\d))?\s*(?:[:\x{00B7}\-\x{2013}|]\s*)?/u',
 		'',
 		$title
 	);
