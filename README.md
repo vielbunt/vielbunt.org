@@ -10,8 +10,10 @@ automatisch aus unseren bestehenden Beiträgen zusammen.
 1. Zuerst **Twenty Twenty-Five** im WordPress-Backend installieren
    (Design → Themes → Theme hinzufügen). Es muss nur vorhanden sein,
    nicht aktiviert.
-2. Die ZIP-Datei `vielbunt.zip` unter Design → Themes → Theme hochladen
-   einspielen und aktivieren.
+2. Auf dem Server liegt das Theme im Ordner `vielbuntzweinull`. Nur die
+   allererste Installation ist ein Upload von Hand (Design → Themes →
+   Theme hochladen, das ZIP muss genau diesen Ordnernamen enthalten).
+   Danach kommen Updates automatisch, siehe „Updates und Deployment".
 3. **Cera Pro** wird automatisch aus unserer Mediathek geladen
    (`/wp-content/uploads/2021/01/`). Wir liefern keine Font-Dateien
    mit, das ist so gewollt (Lizenz, siehe unten).
@@ -24,6 +26,41 @@ automatisch aus unseren bestehenden Beiträgen zusammen.
 Bitte zuerst lokal (LocalWP, DDEV) oder auf einer Staging-Subdomain
 testen bevor wir das auf der Live-Seite machen. Inhalte bleiben erhalten,
 wir ändern nur die Darstellung.
+
+## Updates und Deployment
+
+Jeder Push auf `main` geht von selbst live, meistens nach zwei bis drei
+Minuten:
+
+1. Die GitHub Action (`.github/workflows/deploy.yml`) prüft PHP-Syntax,
+   `theme.json` und das JavaScript und fährt dann ein Wegwerf-WordPress mit
+   dem Theme hoch (WordPress Playground), in dem ein paar Seiten geladen
+   werden. Jeder PHP-Fehler und jede Warnung stoppt alles, auf dem Server
+   kommt dann nichts an.
+2. Sie baut `theme.zip` (Ordner `vielbuntzweinull`, Version = die aus der
+   `style.css` plus Laufnummer, z. B. `2.2.0.17`) und legt damit ein
+   GitHub-Release an, zusammen mit einer kleinen `release.json`.
+3. Sie ruft `POST https://www.vielbunt.org/wp-json/vielbunt/v1/deploy` mit
+   dem Secret `DEPLOY_TOKEN` auf. WordPress lädt das Release und installiert
+   es über den ganz normalen Theme-Updater in den bestehenden Ordner.
+   Inhalte, Menüs und Startseiten-Einstellungen bleiben unangetastet.
+4. Zum Schluss lädt sie die Live-Startseite und schaut, ob Hero und Kacheln
+   da sind.
+
+Klappt der Webhook mal nicht, sieht WordPress das Update trotzdem unter
+Dashboard → Aktualisierungen und spielt es mit dem automatischen
+Hintergrund-Update ein (für dieses Theme fest eingeschaltet).
+
+Status, letzte Läufe, „Jetzt aktualisieren" und das Token gibt es unter
+**Design → Theme-Updates** im Backend.
+
+**Einmalig für den Webhook:** Im Backend Design → Theme-Updates öffnen,
+„Token erzeugen" klicken und das Token in GitHub unter Settings → Secrets
+and variables → Actions als `DEPLOY_TOKEN` eintragen. Alternativ
+`VIELBUNT_DEPLOY_TOKEN` in der `wp-config.php` setzen.
+
+Für größere Änderungen einfach `Version:` in der `style.css` hochsetzen,
+die Laufnummer hängt die Action selbst dran.
 
 ## Wie die Startseite aufgebaut ist
 
@@ -97,33 +134,39 @@ Alles leer lassen und es greift der Standard-Wert.
 - Hintergrundbild pro Kachel wählen (der Farbschleier kommt automatisch)
 - Überschrift „Schnellzugriff" ändern
 
+Alles wird sofort in der Vorschau angezeigt und mit dem normalen
+**Speichern** oben rechts übernommen. Leere Felder zeigen den grauen
+Standardtext.
+
 **Hero-Text als Filter:** Wer lieber in `functions.php` arbeitet,
 kann Kicker/Titel/Lead auch über `vielbunt_hero_title` etc. setzen.
-Block-Attribut hat dann Vorrang.
+Ein im Editor eingetragener Text hat dann Vorrang.
 
-### Warum die Inhalte jetzt Updates überleben
+### Warum die Kachelbilder nicht mehr verschwinden
 
-Früher lagen die Hero-/Schnellzugriff-Inhalte ausschließlich als
-Block-Attribute in der DB-Kopie des `front-page`-Templates. Bei einem
-Theme-Re-Upload, einem geänderten Ordnernamen oder „Anpassungen löschen"
-war diese Kopie weg und alles fiel auf die Code-Defaults zurück – die
-Texte, Buttons und Bilder mussten neu gesetzt werden.
+Bis 2.1.x lagen Hero-Texte und Kachelbilder als Block-Attribute im
+`front-page`-Template. WordPress serialisiert Templates bei jedem
+Speichern in PHP neu und macht dabei aus der Bilder-Map `{"0":…,"1":…}`
+eine Liste `[…]`. Der Editor verwirft diese Liste beim nächsten Öffnen,
+und alle Kachelbilder sind weg. Theme-Neu-Upload oder Template-Reset
+haben die Attribute zusätzlich jedes Mal mitgenommen. Die alte
+Spiegelung nach `vielbunt_block_settings` hat das nicht aufgefangen, weil
+sie denselben Fehler mitgeschleppt hat.
 
-Jetzt spiegelt der Editor jede Änderung zusätzlich in eine
-`wp_options`-Zeile (`vielbunt_block_settings`). Optionen hängen nicht am
-Theme-Ordner und überleben Updates und Template-Resets. Technisch:
+Seit 2.2 liegt alles in einer Option, `vielbunt_frontpage`
+(siehe `inc/frontpage.php`):
 
-- REST-Endpoint `csd/v1/settings` (GET + POST), nur für Nutzer mit
-  `edit_theme_options`.
-- `editor.js` lädt die Werte beim Öffnen des Blocks und befüllt leere
-  Attribute; jede Änderung wird debounced zurückgeschrieben.
-- Die PHP-Render-Callbacks lesen in der Reihenfolge
-  **Block-Attribut → `wp_options` → Hardcoded-Default**.
+- mit strengem REST-Schema registriert und über die WordPress-eigene
+  „site"-Entity bearbeitet, wird also mit „Speichern" wie alles andere
+  gespeichert,
+- unabhängig von Theme-Ordner, Template und Theme-Updates,
+- Bilder werden mit Anhang-ID gespeichert (URL als Rückfallebene).
 
-Heißt: Selbst wenn die Template-Anpassung mal verloren geht, holt sich
-der Block die Inhalte beim nächsten Öffnen automatisch aus `wp_options`
-zurück. Manuell zurücksetzen geht über das Löschen der Option
-`vielbunt_block_settings`.
+Beim ersten Seitenaufruf nach dem Update werden die Inhalte einmalig aus
+dem angepassten Template und aus `vielbunt_block_settings` übernommen
+(die alte Option bleibt als Backup liegen). Dieselbe Migration nimmt auch
+ein paar alte HTML-Kommentare aus dem front-page-Template, wegen denen der
+Editor die `<main>`-Gruppe als „ungültiger Inhalt" markiert hat.
 
 ## Farben und Schrift
 

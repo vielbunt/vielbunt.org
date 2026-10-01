@@ -14,6 +14,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once get_stylesheet_directory() . '/inc/frontpage.php';
+require_once get_stylesheet_directory() . '/inc/deploy.php';
+
+/* Updates direkt aus GitHub, siehe inc/deploy.php und Design > Theme-Updates */
+new Vielbunt_Theme_Deploy(
+	array(
+		'repo'      => 'vielbunt/vielbunt.org',
+		'namespace' => 'vielbunt/v1',
+		'prefix'    => 'vielbunt',
+	)
+);
+
 /* Stylesheets laden */
 function vielbunt_enqueue_styles() {
 	wp_enqueue_style(
@@ -250,214 +262,40 @@ function vielbunt_icon( $name ) {
 	return $o . $p . $c;
 }
 
-/* ------------------------------------------------------------------ *
- * Persistente Block-Inhalte (wp_options)
- *
- * Problem: Hero-/Schnellzugriff-Inhalte werden im Site-Editor als
- * Block-Attribute gepflegt. Die liegen aber nur in der DB-Kopie des
- * front-page-Templates und gehen bei einem Theme-Re-Upload, einem
- * geänderten Theme-Ordnernamen oder „Anpassungen löschen" verloren.
- *
- * Lösung: Wir spiegeln die Inhalte zusätzlich in eine wp_options-Zeile.
- * Optionen überleben Theme-Updates und Template-Resets. Der Editor
- * schreibt jede Änderung per REST (csd/v1/settings) dorthin und holt
- * sich die Werte beim Laden zurück. Die Render-Callbacks lesen in der
- * Reihenfolge: Block-Attribut -> wp_options -> Hardcoded-Default.
- * ------------------------------------------------------------------ */
-
-if ( ! defined( 'VIELBUNT_SETTINGS_OPTION' ) ) {
-	define( 'VIELBUNT_SETTINGS_OPTION', 'vielbunt_block_settings' );
-}
-
-/* Welche Blöcke/Attribute dürfen persistiert werden und wie werden
-   sie bereinigt. Alles was hier nicht steht wird ignoriert. */
-function vielbunt_settings_schema() {
-	return array(
-		'hero' => array(
-			'bgUrl'         => 'url',
-			'bgId'          => 'int',
-			'heroKicker'    => 'text',
-			'heroTitle'     => 'text',
-			'heroLead'      => 'textarea',
-			'btnSolidLabel' => 'text',
-			'btnSolidUrl'   => 'url',
-			'btnGhostLabel' => 'text',
-			'btnGhostUrl'   => 'url',
-		),
-		'quicklinks' => array(
-			'heading' => 'text',
-			'images'  => 'images', // { index: { url, id } }
-			'tiles'   => 'tiles',  // { index: { label, url } }
-		),
-	);
-}
-
-function vielbunt_filled( $v ) {
-	if ( is_array( $v ) ) {
-		return ! empty( $v );
-	}
-	return null !== $v && '' !== $v;
-}
-
-/* Wert auflösen: Block-Attribut -> wp_options -> Default. */
-function vielbunt_setting( $attrs, $block, $key, $default ) {
-	if ( is_array( $attrs ) && isset( $attrs[ $key ] ) && vielbunt_filled( $attrs[ $key ] ) ) {
-		return $attrs[ $key ];
-	}
-	$store = get_option( VIELBUNT_SETTINGS_OPTION, array() );
-	if ( isset( $store[ $block ][ $key ] ) && vielbunt_filled( $store[ $block ][ $key ] ) ) {
-		return $store[ $block ][ $key ];
-	}
-	return $default;
-}
-
-function vielbunt_sanitize_image_map( $images ) {
-	if ( ! is_array( $images ) ) {
-		return array();
-	}
-	$out = array();
-	foreach ( $images as $i => $img ) {
-		if ( ! is_array( $img ) ) {
-			continue;
-		}
-		$url = isset( $img['url'] ) ? esc_url_raw( (string) $img['url'] ) : '';
-		$id  = isset( $img['id'] ) ? (int) $img['id'] : 0;
-		if ( '' === $url && 0 === $id ) {
-			continue;
-		}
-		$out[ (string) (int) $i ] = array( 'url' => $url, 'id' => $id );
-	}
-	return $out;
-}
-
-function vielbunt_sanitize_tile_map( $tiles ) {
-	if ( ! is_array( $tiles ) ) {
-		return array();
-	}
-	$out = array();
-	foreach ( $tiles as $i => $tile ) {
-		if ( ! is_array( $tile ) ) {
-			continue;
-		}
-		$entry = array();
-		if ( isset( $tile['label'] ) && '' !== $tile['label'] ) {
-			$entry['label'] = sanitize_text_field( (string) $tile['label'] );
-		}
-		if ( isset( $tile['url'] ) && '' !== $tile['url'] ) {
-			$entry['url'] = esc_url_raw( (string) $tile['url'] );
-		}
-		if ( ! empty( $entry ) ) {
-			$out[ (string) (int) $i ] = $entry;
-		}
-	}
-	return $out;
-}
-
-/* Eingehende Attribute gemäß Schema bereinigen. */
-function vielbunt_sanitize_settings( $block, $attrs ) {
-	$schema = vielbunt_settings_schema();
-	if ( ! isset( $schema[ $block ] ) || ! is_array( $attrs ) ) {
-		return array();
-	}
-	$clean = array();
-	foreach ( $schema[ $block ] as $key => $type ) {
-		if ( ! array_key_exists( $key, $attrs ) ) {
-			continue;
-		}
-		$val = $attrs[ $key ];
-		switch ( $type ) {
-			case 'url':
-				$clean[ $key ] = esc_url_raw( (string) $val );
-				break;
-			case 'int':
-				$clean[ $key ] = (int) $val;
-				break;
-			case 'textarea':
-				$clean[ $key ] = sanitize_textarea_field( (string) $val );
-				break;
-			case 'images':
-				$clean[ $key ] = vielbunt_sanitize_image_map( $val );
-				break;
-			case 'tiles':
-				$clean[ $key ] = vielbunt_sanitize_tile_map( $val );
-				break;
-			case 'text':
-			default:
-				$clean[ $key ] = sanitize_text_field( (string) $val );
-				break;
-		}
-	}
-	return $clean;
-}
-
-/* REST: csd/v1/settings (GET + POST).
-   Nur wer das Theme bearbeiten darf (edit_theme_options) kommt ran. */
-function vielbunt_rest_permission() {
-	return current_user_can( 'edit_theme_options' );
-}
-
-function vielbunt_rest_get_settings() {
-	$store = get_option( VIELBUNT_SETTINGS_OPTION, array() );
-	if ( ! is_array( $store ) ) {
-		$store = array();
-	}
-	return rest_ensure_response( $store );
-}
-
-function vielbunt_rest_save_settings( WP_REST_Request $request ) {
-	$block  = sanitize_key( (string) $request->get_param( 'block' ) );
-	$attrs  = $request->get_param( 'attributes' );
-	$schema = vielbunt_settings_schema();
-
-	if ( ! isset( $schema[ $block ] ) ) {
-		return new WP_Error( 'vielbunt_bad_block', __( 'Unbekannter Block.', 'vielbunt' ), array( 'status' => 400 ) );
-	}
-
-	$store = get_option( VIELBUNT_SETTINGS_OPTION, array() );
-	if ( ! is_array( $store ) ) {
-		$store = array();
-	}
-	$store[ $block ] = vielbunt_sanitize_settings( $block, is_array( $attrs ) ? $attrs : array() );
-	update_option( VIELBUNT_SETTINGS_OPTION, $store );
-
-	return rest_ensure_response( $store );
-}
-
-function vielbunt_register_rest() {
-	register_rest_route(
-		'csd/v1',
-		'/settings',
-		array(
-			array(
-				'methods'             => WP_REST_Server::READABLE,
-				'callback'            => 'vielbunt_rest_get_settings',
-				'permission_callback' => 'vielbunt_rest_permission',
-			),
-			array(
-				'methods'             => WP_REST_Server::CREATABLE,
-				'callback'            => 'vielbunt_rest_save_settings',
-				'permission_callback' => 'vielbunt_rest_permission',
-			),
-		)
-	);
-}
-add_action( 'rest_api_init', 'vielbunt_register_rest' );
-
 /* Dynamische Blöcke */
 
-/* Hero */
-function vielbunt_block_hero( $attributes = array() ) {
-	// Reihenfolge je Wert: Block-Attribut -> wp_options -> Filter/Default.
-	$a       = $attributes;
-	$kicker  = vielbunt_setting( $a, 'hero', 'heroKicker',    apply_filters( 'vielbunt_hero_kicker', 'QUEERE COMMUNITY DARMSTADT' ) );
-	$title   = vielbunt_setting( $a, 'hero', 'heroTitle',     apply_filters( 'vielbunt_hero_title',  'Schön, dass du da bist.' ) );
-	$lead    = vielbunt_setting( $a, 'hero', 'heroLead',      apply_filters( 'vielbunt_hero_lead',   'Ob Beratung, Begegnung oder einfach abhängen. Bei vielbunt ist Platz für dich. Komm vorbei im Queeren Zentrum Darmstadt.' ) );
-	$btn1_l  = vielbunt_setting( $a, 'hero', 'btnSolidLabel', 'Mitmachen' );
-	$btn1_u  = vielbunt_setting( $a, 'hero', 'btnSolidUrl',   home_url( '/mitmachen/' ) );
-	$btn2_l  = vielbunt_setting( $a, 'hero', 'btnGhostLabel', 'Zum Queeren Zentrum' );
-	$btn2_u  = vielbunt_setting( $a, 'hero', 'btnGhostUrl',   home_url( '/queeres-zentrum-darmstadt/das-queere-zentrum/' ) );
+/* Hero-Standards, auch als Platzhalter in der Editor-Seitenleiste */
+function vielbunt_hero_defaults() {
+	return array(
+		'kicker'    => apply_filters( 'vielbunt_hero_kicker', 'QUEERE COMMUNITY DARMSTADT' ),
+		'title'     => apply_filters( 'vielbunt_hero_title', 'Schön, dass du da bist.' ),
+		'lead'      => apply_filters( 'vielbunt_hero_lead', 'Ob Beratung, Begegnung oder einfach abhängen. Bei vielbunt ist Platz für dich. Komm vorbei im Queeren Zentrum Darmstadt.' ),
+		'btn1Label' => 'Mitmachen',
+		'btn1Url'   => home_url( '/mitmachen/' ),
+		'btn2Label' => 'Zum Queeren Zentrum',
+		'btn2Url'   => home_url( '/queeres-zentrum-darmstadt/das-queere-zentrum/' ),
+	);
+}
 
-	$bg = vielbunt_setting( $a, 'hero', 'bgUrl', '' );
+/* Hero. Inhalte kommen aus der Option vielbunt_frontpage (inc/frontpage.php),
+   leere Felder fallen auf die Standards oben zurück. */
+function vielbunt_block_hero( $attributes = array() ) {
+	$data = vielbunt_frontpage_for_render( $attributes );
+	$hero = $data['hero'];
+	foreach ( vielbunt_hero_defaults() as $key => $default ) {
+		if ( '' === $hero[ $key ] ) {
+			$hero[ $key ] = $default;
+		}
+	}
+	$kicker = $hero['kicker'];
+	$title  = $hero['title'];
+	$lead   = $hero['lead'];
+	$btn1_l = $hero['btn1Label'];
+	$btn1_u = $hero['btn1Url'];
+	$btn2_l = $hero['btn2Label'];
+	$btn2_u = $hero['btn2Url'];
+
+	$bg = vielbunt_frontpage_image( $hero['bgId'], $hero['bgUrl'], 'full' );
 	if ( '' !== $bg ) {
 		$media = 'url(' . esc_url( $bg ) . ')';
 	} else {
@@ -483,9 +321,10 @@ function vielbunt_block_hero( $attributes = array() ) {
 	return ob_get_clean();
 }
 
-/* Schnellzugriff */
-function vielbunt_block_quicklinks( $attributes = array() ) {
-	$tiles = array(
+/* Schnellzugriff: Farben und Icons stehen fest hier, Beschriftung, URL und
+   Bild kommen pro Kachel aus der Option vielbunt_frontpage */
+function vielbunt_default_tiles() {
+	return array(
 		array( 'Queeres Zentrum',      '/queeres-zentrum-darmstadt/das-queere-zentrum/', 'pink',   'community' ),
 		array( 'Christopher Street Day', '/csd-darmstadt/',                              'green',  'flag' ),
 		array( 'Treffbunt',            '/aktivitaeten/treffbunt/',                       'yellow', 'coffee' ),
@@ -495,39 +334,33 @@ function vielbunt_block_quicklinks( $attributes = array() ) {
 		array( 'Beratung',             '/queeres-zentrum-darmstadt/beratung/',           'green',  'chat' ),
 		array( 'Mitmachen!',           '/mitmachen/',                                    'pink',   'hand' ),
 	);
+}
+
+function vielbunt_block_quicklinks( $attributes = array() ) {
+	$tiles = vielbunt_default_tiles();
 	$hex = array(
 		'pink' => '#E6175F', 'green' => '#41B73D', 'yellow' => '#FFCB03',
 		'blue' => '#13A3DC', 'purple' => '#6546B4', 'orange' => '#F59C00',
 	);
 
-	// Reihenfolge je Wert: Block-Attribut -> wp_options -> Default.
-	$heading        = vielbunt_setting( $attributes, 'quicklinks', 'heading', 'Schnellzugriff' );
-	$images         = vielbunt_setting( $attributes, 'quicklinks', 'images', array() );
-	$tile_overrides = vielbunt_setting( $attributes, 'quicklinks', 'tiles', array() );
-	if ( ! is_array( $images ) ) {
-		$images = array();
-	}
-	if ( ! is_array( $tile_overrides ) ) {
-		$tile_overrides = array();
-	}
+	$data    = vielbunt_frontpage_for_render( $attributes );
+	$saved   = $data['quicklinks'];
+	$heading = '' !== $saved['heading'] ? $saved['heading'] : 'Schnellzugriff';
 
 	$grid = '<div class="vb-grid vb-grid--quick">';
 	foreach ( $tiles as $i => $t ) {
 		list( $label, $url, $color, $icon ) = $t;
-		// Per-tile label / URL can be overridden in the Site Editor.
-		if ( isset( $tile_overrides[ $i ]['label'] ) && '' !== $tile_overrides[ $i ]['label'] ) {
-			$label = $tile_overrides[ $i ]['label'];
+		$override = $saved['tiles'][ $i ];
+		if ( '' !== $override['label'] ) {
+			$label = $override['label'];
 		}
-		if ( isset( $tile_overrides[ $i ]['url'] ) && '' !== $tile_overrides[ $i ]['url'] ) {
-			$url = $tile_overrides[ $i ]['url'];
+		if ( '' !== $override['url'] ) {
+			$url = $override['url'];
 		}
 		$hexc = $hex[ $color ];
 
 		// Optionales Kachel-Hintergrundbild (im Editor je Kachel wählbar).
-		$img_url = '';
-		if ( isset( $images[ $i ]['url'] ) && '' !== $images[ $i ]['url'] ) {
-			$img_url = $images[ $i ]['url'];
-		}
+		$img_url = vielbunt_frontpage_image( $override['imgId'], $override['imgUrl'] );
 		$layers = '';
 		if ( $img_url ) {
 			// Bild + Farb-Schleier (damit Icon und Text lesbar bleiben).
@@ -542,7 +375,7 @@ function vielbunt_block_quicklinks( $attributes = array() ) {
 			'<a class="vb-tile is-%1$s%2$s" href="%3$s" style="background:%4$s">%5$s<span class="vb-tile__icon">%6$s</span><span class="vb-tile__label">%7$s</span></a>',
 			esc_attr( $color ),
 			$img_url ? ' has-img' : '',
-			esc_url( home_url( $url ) ),
+			esc_url( preg_match( '#^(https?:)?//#i', $url ) ? $url : home_url( $url ) ),
 			esc_attr( $hexc ),
 			$layers,
 			vielbunt_icon( $icon ),
@@ -885,26 +718,16 @@ add_action( 'customize_register', 'vielbunt_customize_campaign' );
 function vielbunt_register_blocks() {
 	$common = array( 'api_version' => 3 );
 
+	// Hero und Schnellzugriff halten ihre Inhalte in der Option vielbunt_frontpage,
+	// nicht in Block-Attributen. "preview" schickt nur die Editor-Seitenleiste,
+	// das landet nie im Template.
+	$preview = array( 'preview' => array( 'type' => 'object' ) );
 	register_block_type( 'vielbunt/hero', array_merge( $common, array(
-		'attributes'      => array(
-			'bgUrl'         => array( 'type' => 'string', 'default' => '' ),
-			'bgId'          => array( 'type' => 'number', 'default' => 0 ),
-			'heroKicker'    => array( 'type' => 'string', 'default' => '' ),
-			'heroTitle'     => array( 'type' => 'string', 'default' => '' ),
-			'heroLead'      => array( 'type' => 'string', 'default' => '' ),
-			'btnSolidLabel' => array( 'type' => 'string', 'default' => '' ),
-			'btnSolidUrl'   => array( 'type' => 'string', 'default' => '' ),
-			'btnGhostLabel' => array( 'type' => 'string', 'default' => '' ),
-			'btnGhostUrl'   => array( 'type' => 'string', 'default' => '' ),
-		),
+		'attributes'      => $preview,
 		'render_callback' => 'vielbunt_block_hero',
 	) ) );
 	register_block_type( 'vielbunt/quicklinks', array_merge( $common, array(
-		'attributes'      => array(
-			'heading' => array( 'type' => 'string', 'default' => 'Schnellzugriff' ),
-			'images'  => array( 'type' => 'object', 'default' => array() ),
-			'tiles'   => array( 'type' => 'object', 'default' => array() ),
-		),
+		'attributes'      => $preview,
 		'render_callback' => 'vielbunt_block_quicklinks',
 	) ) );
 	register_block_type( 'vielbunt/events', array_merge( $common, array(
@@ -936,9 +759,14 @@ function vielbunt_block_editor_assets() {
 	wp_enqueue_script(
 		'vielbunt-blocks',
 		get_stylesheet_directory_uri() . '/assets/editor.js',
-		array( 'wp-blocks', 'wp-element', 'wp-server-side-render', 'wp-i18n', 'wp-block-editor', 'wp-components', 'wp-api-fetch' ),
+		array( 'wp-blocks', 'wp-element', 'wp-server-side-render', 'wp-i18n', 'wp-block-editor', 'wp-components', 'wp-core-data' ),
 		wp_get_theme()->get( 'Version' ),
 		true
+	);
+	wp_add_inline_script(
+		'vielbunt-blocks',
+		'window.vielbuntFrontpage = ' . wp_json_encode( vielbunt_frontpage_editor_data() ) . ';',
+		'before'
 	);
 }
 add_action( 'enqueue_block_editor_assets', 'vielbunt_block_editor_assets' );

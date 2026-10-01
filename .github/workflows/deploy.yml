@@ -1,0 +1,128 @@
+# Jeder Push auf main: Theme prüfen, als Release bauen und auf dem Server einspielen.
+# Wie das auf WordPress-Seite funktioniert steht in inc/deploy.php und im README.
+name: Theme prüfen und ausrollen
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# nie zwei Deploys gleichzeitig, der zweite wartet
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  THEME_SLUG: vielbuntzweinull
+  SITE_URL: https://www.vielbunt.org
+  REST_NAMESPACE: vielbunt/v1
+  SMOKE_MARKERS: "vb-hero vb-quick vb-tile"
+
+jobs:
+  test:
+    name: Prüfen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: PHP-Syntax
+        run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+
+      - name: JSON und JavaScript
+        run: |
+          python3 -m json.tool theme.json > /dev/null
+          for f in assets/*.js; do node --check "$f"; done
+
+      - name: WordPress mit dem Theme hochfahren und Seiten laden
+        run: bash .github/smoke-test.sh
+
+  release:
+    name: Release bauen
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version aus der style.css plus Laufnummer, z. B. 2.2.0.17.
+      # So ist jede Version größer als die davor, ohne dass jemand von Hand hochzählen muss.
+      - name: Version festlegen
+        id: version
+        run: |
+          base=$(sed -n 's/^Version:[[:space:]]*//p' style.css | head -1 | tr -d '\r ')
+          echo "version=${base}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: ZIP und release.json bauen
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p "build/$THEME_SLUG"
+          git archive HEAD | tar -x -C "build/$THEME_SLUG"
+          sed -i "s/^Version:.*/Version: $VERSION/" "build/$THEME_SLUG/style.css"
+          (cd build && zip -qr ../theme.zip "$THEME_SLUG")
+          jq -n \
+            --arg version "$VERSION" \
+            --arg package "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/theme.zip" \
+            --arg commit "$GITHUB_SHA" \
+            --arg message "$(git log -1 --pretty=%s)" \
+            '{version: $version, package: $package, commit: $commit, message: $message}' > release.json
+          cat release.json
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v$VERSION" theme.zip release.json \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --notes "$(git log -1 --pretty=%B)" \
+            --latest
+
+  deploy:
+    name: Auf den Server
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: WordPress das Update holen lassen
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            echo "::warning::Kein DEPLOY_TOKEN hinterlegt. WordPress holt sich $VERSION dann von selbst mit dem automatischen Update (spätestens nach 12 Stunden)."
+            exit 0
+          fi
+          for try in 1 2 3; do
+            code=$(curl -sS -o resp.json -w '%{http_code}' --max-time 240 \
+              -X POST "$SITE_URL/wp-json/$REST_NAMESPACE/deploy" \
+              -H "X-Deploy-Token: $DEPLOY_TOKEN" || true)
+            cat resp.json 2>/dev/null; echo
+            to=$(jq -r '.to // empty' resp.json 2>/dev/null || true)
+            if [ "$code" = "200" ] && [ "$to" = "$VERSION" ]; then
+              echo "Live ist jetzt $VERSION"
+              exit 0
+            fi
+            echo "Versuch $try: HTTP $code, Server meldet Version '$to'"
+            sleep 20
+          done
+          echo "::error::Deploy von $VERSION hat nicht geklappt. Details unter Design > Theme-Updates im WordPress-Backend."
+          exit 1
+
+      - name: Live-Seite prüfen
+        run: |
+          code=$(curl -sS -o page.html -w '%{http_code}' "$SITE_URL/?deploycheck=$GITHUB_RUN_NUMBER")
+          if [ "$code" != "200" ]; then echo "::error::Startseite antwortet mit HTTP $code"; exit 1; fi
+          if grep -qiE 'critical error|Fatal error|kritischer Fehler' page.html; then echo "::error::PHP-Fehler auf der Startseite"; exit 1; fi
+          for m in $SMOKE_MARKERS; do
+            grep -q "$m" page.html || { echo "::error::$m fehlt auf der Startseite"; exit 1; }
+          done
+          echo "Startseite sieht gut aus."
