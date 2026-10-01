@@ -37,6 +37,7 @@ new Vielbunt_Theme_Deploy(
 			'2026-10-fancybox'    => array( 'FancyBox-Plugin abschalten (Theme hat jetzt eine eigene Lightbox)', 'vielbunt_once_disable_fancybox' ),
 			'2026-10-autoptimize' => array( 'Autoptimize: Google Fonts entfernen, kein Preconnect zu Google', 'vielbunt_once_autoptimize_no_gfonts' ),
 			'2026-10-beitragsseite' => array( 'Seite "Alle Beiträge" anlegen und als Beitragsseite setzen', 'vbarchive_once_posts_page' ),
+			'2026-10-startseite-statisch' => array( 'Einstellungen > Lesen: statische Startseite, damit die Beitragsseite greift', 'vbarchive_once_static_front' ),
 		),
 	)
 );

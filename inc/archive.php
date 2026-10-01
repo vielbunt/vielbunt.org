@@ -271,6 +271,33 @@ function vbarchive_once_posts_page() {
 	return 'Seite "Alle Beiträge" (' . get_permalink( $id ) . ') als Beitragsseite gesetzt';
 }
 
+/* einmaliger Schritt: WordPress nutzt die Beitragsseite nur, wenn unter
+   Einstellungen > Lesen eine statische Startseite eingestellt ist. Auf den
+   Live-Seiten stand das auf "Deine neuesten Beiträge" (die Startseite kam nur
+   über front-page.html). Wir stellen auf eine leere Seite "Startseite" um,
+   was auf / zu sehen ist bleibt gleich, die Vorlage front-page.html greift
+   in beiden Fällen. */
+function vbarchive_once_static_front() {
+	if ( 'page' === get_option( 'show_on_front' ) && (int) get_option( 'page_on_front' ) ) {
+		return 'Statische Startseite war schon eingestellt';
+	}
+	$page = get_page_by_path( 'startseite' );
+	$id   = $page ? $page->ID : wp_insert_post(
+		array(
+			'post_type'   => 'page',
+			'post_title'  => 'Startseite',
+			'post_name'   => 'startseite',
+			'post_status' => 'publish',
+		)
+	);
+	if ( ! $id || is_wp_error( $id ) ) {
+		return 'Startseite konnte nicht angelegt werden';
+	}
+	update_option( 'page_on_front', $id );
+	update_option( 'show_on_front', 'page' );
+	return 'Einstellungen > Lesen: statische Startseite (Seite ' . $id . ' "Startseite"), Beitragsseite "Alle Beiträge"';
+}
+
 /* Links auf der Startseite ("Alle Beiträge →", "Zum Blog →") zeigten auf eine
    einzelne Kategorie. Sobald es die Beitragsseite gibt, führen sie dorthin.
    Per render_block, damit es auch im angepassten Startseiten-Template greift. */
