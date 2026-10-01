@@ -189,6 +189,15 @@ Kommt ein SEO- oder OG-Plugin dazu, hält sich das Theme automatisch raus.
   abschalten, Autoptimize lässt Google Fonts in Ruhe). Ergebnis unter
   Design → Theme-Updates.
 
+## Suchmaschinen
+
+- `inc/seo.php` (gleiche Datei wie bei CSD): Kategorie-, Schlagwort-,
+  Autor*innen- und Datumsarchive, Suchergebnisse und Folgeseiten bekommen
+  `noindex` und fehlen in der Sitemap. So zeigt Google unter dem Treffer
+  echte Seiten statt Listen.
+- `inc/schema.php`: strukturierte Daten zum Verein (Name, Logo, Adresse,
+  Kontakt, Instagram) auf der Startseite.
+
 ## Farben und Schrift
 
 Unter Design → Editor → Stile liegt die vielbunt-Palette mit allen sechs

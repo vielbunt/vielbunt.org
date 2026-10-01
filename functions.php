@@ -17,6 +17,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once get_stylesheet_directory() . '/inc/frontpage.php';
 require_once get_stylesheet_directory() . '/inc/meta.php';
 require_once get_stylesheet_directory() . '/inc/icons.php';
+require_once get_stylesheet_directory() . '/inc/seo.php';
+require_once get_stylesheet_directory() . '/inc/schema.php';
+
+/* Suchmaschinen: Archive raus aus Index und Sitemap, siehe inc/seo.php */
+vbseo_setup( array( 'toggle' => false, 'page_excerpt' => false ) );
 require_once get_stylesheet_directory() . '/inc/deploy.php';
 require_once get_stylesheet_directory() . '/inc/once.php';
 
