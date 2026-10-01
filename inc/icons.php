@@ -27,12 +27,13 @@ function vielbunt_icon_url( $file ) {
 }
 
 /* bewusst ohne type="image/png": ShortPixel schreibt die URLs um und hat dabei
-   das Anführungszeichen vor dem type-Attribut verschluckt */
+   das Anführungszeichen vor dem type-Attribut verschluckt. data-spai-excluded
+   hält ShortPixel ganz raus, sonst macht es aus jedem Icon ein 180-px-WebP */
 function vielbunt_icon_tags() {
-	printf( '<link rel="icon" sizes="48x48" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'favicon.ico' ) ) );
-	printf( '<link rel="icon" sizes="32x32" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'icon-32.png' ) ) );
-	printf( '<link rel="icon" sizes="192x192" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'icon-192.png' ) ) );
-	printf( '<link rel="apple-touch-icon" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'apple-touch-icon.png' ) ) );
+	printf( '<link data-spai-excluded="true" rel="icon" sizes="48x48" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'favicon.ico' ) ) );
+	printf( '<link data-spai-excluded="true" rel="icon" sizes="32x32" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'icon-32.png' ) ) );
+	printf( '<link data-spai-excluded="true" rel="icon" sizes="192x192" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'icon-192.png' ) ) );
+	printf( '<link data-spai-excluded="true" rel="apple-touch-icon" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'apple-touch-icon.png' ) ) );
 	echo '<meta name="theme-color" content="#ffffff" />' . "\n";
 }
 
