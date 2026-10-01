@@ -217,3 +217,27 @@ function vielbunt_once_menu() {
 	);
 	return $changed ? 'Menü "' . implode( '", "', $changed ) . '": "News" ist jetzt "Neuigkeiten" (Kommende Termine, Alle Beiträge, Pressemitteilungen, Vereinsnews)' : 'Kein Untermenü "News" gefunden, nichts geändert';
 }
+
+/* Menü: "Vereinsnews" (Kategorie Verein) unter "Neuigkeiten" ergänzen */
+function vielbunt_once_menu_vereinsnews() {
+	$url     = get_category_link( vielbunt_cat( 'verein' ) );
+	$changed = vielbunt_once_edit_submenu(
+		'Neuigkeiten',
+		function ( $block ) use ( $url ) {
+			foreach ( $block['innerBlocks'] as $child ) {
+				if ( isset( $child['attrs']['url'] ) && untrailingslashit( $child['attrs']['url'] ) === untrailingslashit( $url ) ) {
+					return $block; // schon drin
+				}
+			}
+			$link                  = vielbunt_once_nav_link( 'Vereinsnews', $url );
+			$link['attrs']['type'] = 'category';
+			$link['attrs']['kind'] = 'taxonomy';
+			$link['attrs']['id']   = vielbunt_cat( 'verein' );
+			$children              = $block['innerBlocks'];
+			$children[]            = $link;
+			return vielbunt_once_set_children( $block, $children );
+		},
+		'vielbunt_menu_backup_2'
+	);
+	return $changed ? 'Menü "' . implode( '", "', $changed ) . '": "Vereinsnews" unter "Neuigkeiten" ergänzt' : 'Kein Untermenü "Neuigkeiten" gefunden';
+}

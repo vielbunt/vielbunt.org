@@ -43,6 +43,7 @@ new Vielbunt_Theme_Deploy(
 			'2026-10-kategorien-neu'   => array( 'Kategorien aufräumen (wie geprüft) und neue Themen-Kategorien', 'vielbunt_once_categories' ),
 			'2026-10-beitragsbilder'   => array( 'Beitragsbilder aus dem ersten eigenen Bild im Text setzen', 'vielbunt_once_thumbs' ),
 			'2026-10-menue'            => array( 'Menü: Beitragsübersicht verlinken', 'vielbunt_once_menu' ),
+			'2026-10-menue-vereinsnews' => array( 'Menü: Vereinsnews unter Neuigkeiten', 'vielbunt_once_menu_vereinsnews' ),
 		),
 	)
 );
