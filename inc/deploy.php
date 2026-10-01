@@ -48,6 +48,7 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 			add_action( 'rest_api_init', array( $this, 'register_route' ) );
 			add_action( 'admin_menu', array( $this, 'admin_menu' ) );
 			add_action( 'admin_post_' . $this->prefix . '_deploy', array( $this, 'admin_action' ) );
+			add_action( 'init', array( $this, 'purge_after_update' ), 99 );
 		}
 
 		/* ---------- Release-Infos aus GitHub ---------- */
@@ -153,6 +154,69 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 				return $wanted;
 			}
 			return new WP_Error( 'deploy_folder', 'Der Theme-Ordner im Paket konnte nicht umbenannt werden.' );
+		}
+
+		/* ---------- Caches leeren ---------- */
+
+		/* Seiten-Caches (WP-Optimize & Co.) wissen nichts von Theme-Updates und
+		   liefern sonst stundenlang die alte Seite aus. Läuft beim ersten Aufruf,
+		   der WordPress wirklich lädt, nachdem sich die Theme-Version geändert hat
+		   (z. B. der Live-Check der GitHub Action). Absichtlich hier und nicht
+		   direkt im Deploy: während des Updates läuft noch der alte Code. */
+		public function purge_after_update() {
+			$key     = $this->prefix . '_deploy_seen_version';
+			$version = (string) wp_get_theme( $this->slug )->get( 'Version' );
+			if ( get_option( $key ) === $version ) {
+				return;
+			}
+			update_option( $key, $version, true );
+			$this->purge_caches();
+		}
+
+		public function purge_caches() {
+			$calls = array(
+				function () {
+					if ( function_exists( 'WP_Optimize' ) && method_exists( WP_Optimize(), 'get_page_cache' ) ) {
+						$cache = WP_Optimize()->get_page_cache();
+						if ( $cache && method_exists( $cache, 'purge' ) ) {
+							$cache->purge();
+						}
+					}
+				},
+				function () {
+					if ( function_exists( 'wpo_cache_flush' ) ) {
+						wpo_cache_flush();
+					}
+				},
+				function () {
+					if ( class_exists( 'autoptimizeCache' ) && method_exists( 'autoptimizeCache', 'clearall' ) ) {
+						autoptimizeCache::clearall();
+					}
+				},
+				function () {
+					if ( function_exists( 'rocket_clean_domain' ) ) {
+						rocket_clean_domain();
+					}
+					if ( function_exists( 'w3tc_flush_all' ) ) {
+						w3tc_flush_all();
+					}
+					if ( function_exists( 'wp_cache_clear_cache' ) ) {
+						wp_cache_clear_cache();
+					}
+					do_action( 'litespeed_purge_all' );
+				},
+				function () {
+					wp_cache_flush();
+				},
+			);
+			// Ein kaputtes Cache-Plugin soll nie die Seite mitreißen
+			foreach ( $calls as $call ) {
+				try {
+					$call();
+				} catch ( \Throwable $e ) {
+					continue;
+				}
+			}
 		}
 
 		/* ---------- Deploy ---------- */

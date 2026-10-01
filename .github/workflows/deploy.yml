@@ -117,7 +117,12 @@ jobs:
           echo "::error::Deploy von $VERSION hat nicht geklappt. Details unter Design > Theme-Updates im WordPress-Backend."
           exit 1
 
+      # Erster Aufruf mit Query-String geht am Seiten-Cache vorbei, lädt also
+      # WordPress mit dem neuen Theme. Das leert dabei die Caches (inc/deploy.php).
+      # Danach muss auch die ganz normale, gecachte Startseite die neue Version zeigen.
       - name: Live-Seite prüfen
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
           code=$(curl -sS -o page.html -w '%{http_code}' "$SITE_URL/?deploycheck=$GITHUB_RUN_NUMBER")
           if [ "$code" != "200" ]; then echo "::error::Startseite antwortet mit HTTP $code"; exit 1; fi
@@ -125,4 +130,14 @@ jobs:
           for m in $SMOKE_MARKERS; do
             grep -q "$m" page.html || { echo "::error::$m fehlt auf der Startseite"; exit 1; }
           done
-          echo "Startseite sieht gut aus."
+          for try in 1 2 3 4 5 6; do
+            curl -sS -o cached.html "$SITE_URL/"
+            if grep -q "ver=$VERSION" cached.html; then
+              echo "Startseite sieht gut aus und Besucher*innen bekommen $VERSION."
+              exit 0
+            fi
+            echo "Versuch $try: Cache liefert noch eine alte Version ($(grep -o 'ver=[0-9.]*' cached.html | sort -u | grep -m1 -E 'ver=[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || echo unbekannt))"
+            sleep 15
+          done
+          echo "::error::Der Seiten-Cache liefert nach dem Update noch die alte Version aus. Im Backend den Cache leeren (WP-Optimize)."
+          exit 1
