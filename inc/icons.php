@@ -3,9 +3,9 @@
  * Favicon und App-Icons aus dem Theme (assets/icons).
  *
  * Ersetzt das "Website-Icon" aus dem Customizer, damit die Icons mit dem
- * Theme versioniert sind und überall scharf aussehen: favicon.ico und 32 px
- * für Browser-Tabs, 192 px für Android, 180 px randlos für den iPhone-
- * Homescreen (iOS rundet selbst ab), 512 px für alles Größere.
+ * Theme versioniert sind und überall scharf aussehen: favicon.ico (48 px) und
+ * 32 px für Browser-Tabs, 192 px für Android und Google, 180 px randlos für
+ * den iPhone-Homescreen (iOS rundet selbst ab), 512 px für alles Größere.
  *
  * @package vielbunt
  */
@@ -14,14 +14,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/* Version im Link = Prüfsumme der Datei, nicht die Theme-Version. So bleibt
+   die URL stabil, bis sich das Icon wirklich ändert. Google holt Favicons nur
+   selten neu und mag ständig wechselnde Adressen nicht. */
 function vielbunt_icon_url( $file ) {
-	return get_stylesheet_directory_uri() . '/assets/icons/' . $file . '?v=' . rawurlencode( (string) wp_get_theme()->get( 'Version' ) );
+	static $hash = array();
+	if ( ! isset( $hash[ $file ] ) ) {
+		$path           = get_stylesheet_directory() . '/assets/icons/' . $file;
+		$hash[ $file ] = is_readable( $path ) ? substr( md5_file( $path ), 0, 8 ) : '0';
+	}
+	return get_stylesheet_directory_uri() . '/assets/icons/' . $file . '?v=' . $hash[ $file ];
 }
 
+/* bewusst ohne type="image/png": ShortPixel schreibt die URLs um und hat dabei
+   das Anführungszeichen vor dem type-Attribut verschluckt */
 function vielbunt_icon_tags() {
-	printf( '<link rel="icon" href="%s" sizes="48x48" />' . "\n", esc_url( vielbunt_icon_url( 'favicon.ico' ) ) );
-	printf( '<link rel="icon" href="%s" type="image/png" sizes="32x32" />' . "\n", esc_url( vielbunt_icon_url( 'icon-32.png' ) ) );
-	printf( '<link rel="icon" href="%s" type="image/png" sizes="192x192" />' . "\n", esc_url( vielbunt_icon_url( 'icon-192.png' ) ) );
+	printf( '<link rel="icon" sizes="48x48" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'favicon.ico' ) ) );
+	printf( '<link rel="icon" sizes="32x32" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'icon-32.png' ) ) );
+	printf( '<link rel="icon" sizes="192x192" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'icon-192.png' ) ) );
 	printf( '<link rel="apple-touch-icon" href="%s" />' . "\n", esc_url( vielbunt_icon_url( 'apple-touch-icon.png' ) ) );
 	echo '<meta name="theme-color" content="#ffffff" />' . "\n";
 }
