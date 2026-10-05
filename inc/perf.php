@@ -24,6 +24,29 @@ function vbperf_image_sizes() {
 }
 add_action( 'after_setup_theme', 'vbperf_image_sizes' );
 
+/* Zwischengrößen (thumbnail, medium, large, vb-card ...) als WebP speichern,
+   nicht mehr als JPG/PNG. Gerade die PNG-Sharepics werden so von ~900 KB auf
+   unter 100 KB kleiner. Das hochgeladene Original bleibt wie es ist. Nur wenn
+   der Server WebP schreiben kann. Bestehende Bilder rechnet ein einmaliger
+   Schritt im Hintergrund um (vbperf_once_webp in inc/once.php). */
+function vbperf_webp_subsizes( $formats ) {
+	static $ok = null, $busy = false;
+	if ( null === $ok ) {
+		if ( $busy ) { // wp_image_editor_supports() fragt den Filter selbst nochmal ab
+			return $formats;
+		}
+		$busy = true;
+		$ok   = wp_image_editor_supports( array( 'mime_type' => 'image/webp' ) );
+		$busy = false;
+	}
+	if ( $ok ) {
+		$formats['image/jpeg'] = 'image/webp';
+		$formats['image/png']  = 'image/webp';
+	}
+	return $formats;
+}
+add_filter( 'image_editor_output_format', 'vbperf_webp_subsizes' );
+
 /* Kachelbild als <img> mit srcset statt einer festen 1024er-URL.
    Gibt '' zurück, wenn es kein Beitragsbild gibt (dann greift der alte Weg). */
 function vbperf_card_image( $post, $alt, $sizes ) {

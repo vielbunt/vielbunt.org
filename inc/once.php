@@ -113,24 +113,97 @@ function vielbunt_once_set_children( $block, $children ) {
 
 /* ---------- Ladezeit (Oktober 2026) ---------- */
 
-/* Kachelgröße vb-card (inc/perf.php) für vorhandene Bilder nachziehen:
-   Beitragsbilder der neuesten 60 Beiträge plus Hero- und Kachelbilder der
-   Startseite. Läuft nicht im Seitenaufruf, sondern in kleinen Häppchen per
-   Cron, damit niemand auf das Umrechnen warten muss. */
-function vbperf_once_card_sizes() {
-	$ids = get_posts(
-		array(
-			'post_type'      => 'post',
-			'post_status'    => 'publish',
-			'posts_per_page' => 60,
-			'fields'         => 'ids',
-			'no_found_rows'  => true,
-		)
-	);
-	$todo = array();
-	foreach ( $ids as $post_id ) {
-		$todo[] = (int) get_post_thumbnail_id( $post_id );
+/* ---------- Bilder neu rechnen (WebP + Kachelgröße) ---------- */
+
+/* Ein Bild neu rechnen: alle Zwischengrößen neu, dank inc/perf.php als WebP,
+   inkl. vb-card. Die alten JPG/PNG-Dateien bleiben liegen, Links im Text auf
+   z. B. -1024x1024.png gehen also weiter. Das Original wird nie angefasst. */
+function vbperf_regenerate_image( $id ) {
+	$id = (int) $id;
+	if ( ! $id || ! wp_attachment_is_image( $id ) ) {
+		return;
 	}
+	$file = get_attached_file( $id );
+	if ( ! $file || ! file_exists( $file ) ) {
+		return;
+	}
+	require_once ABSPATH . 'wp-admin/includes/image.php';
+	$old = wp_get_attachment_metadata( $id );
+	add_filter( 'big_image_size_threshold', '__return_false' ); // nix neu verkleinern, nur Zwischengrößen
+	$meta = wp_generate_attachment_metadata( $id, $file );
+	remove_filter( 'big_image_size_threshold', '__return_false' );
+	if ( ! is_array( $meta ) || empty( $meta['sizes'] ) ) {
+		return;
+	}
+	if ( is_array( $old ) && ! empty( $old['original_image'] ) && empty( $meta['original_image'] ) ) {
+		$meta['original_image'] = $old['original_image'];
+	}
+	wp_update_attachment_metadata( $id, $meta );
+}
+
+/* Warteschlange abarbeiten, ein paar Bilder pro Durchgang. Läuft per Cron und
+   zusätzlich bei Seitenaufrufen im Backend, weil WP-Cron hier selten anspringt
+   (fast alle Besuche kommen aus dem Seitencache und starten WordPress gar nicht). */
+function vbperf_img_queue_run( $max = 3 ) {
+	$todo = get_option( 'vbperf_img_queue', array() );
+	if ( ! is_array( $todo ) || ! $todo ) {
+		return 0;
+	}
+	if ( get_transient( 'vbperf_img_lock' ) ) {
+		return 0;
+	}
+	set_transient( 'vbperf_img_lock', 1, 5 * MINUTE_IN_SECONDS );
+	$batch = array_splice( $todo, 0, $max );
+	// vorher speichern: ein Bild, das den Speicher sprengt, soll nicht ewig wiederkommen
+	update_option( 'vbperf_img_queue', $todo, false );
+	foreach ( $batch as $id ) {
+		try {
+			vbperf_regenerate_image( $id );
+		} catch ( \Throwable $e ) {
+			continue;
+		}
+	}
+	delete_transient( 'vbperf_img_lock' );
+	if ( $todo ) {
+		if ( ! wp_next_scheduled( 'vbperf_img_queue_cron' ) ) {
+			wp_schedule_single_event( time() + 60, 'vbperf_img_queue_cron' );
+		}
+	} else {
+		delete_option( 'vbperf_img_queue' );
+		// fertig: Seitencache einmal leeren, damit überall die neuen srcsets drin stehen
+		if ( function_exists( 'WP_Optimize' ) && method_exists( WP_Optimize(), 'get_page_cache' ) ) {
+			try {
+				WP_Optimize()->get_page_cache()->purge();
+			} catch ( \Throwable $e ) {
+				return count( $batch );
+			}
+		}
+	}
+	return count( $batch );
+}
+
+function vbperf_img_queue_cron() {
+	vbperf_img_queue_run( 3 );
+}
+add_action( 'vbperf_img_queue_cron', 'vbperf_img_queue_cron' );
+add_action( 'vbperf_card_sizes_batch', 'vbperf_img_queue_cron' ); // alter Name aus 2.3.0, falls noch was geplant ist
+
+function vbperf_img_queue_admin() {
+	if ( wp_doing_ajax() || wp_doing_cron() ) {
+		return;
+	}
+	vbperf_img_queue_run( 1 );
+}
+add_action( 'admin_init', 'vbperf_img_queue_admin' );
+
+/* Einmalig: Bilder als WebP neu rechnen. Zuerst Startseite und Beitragsbilder
+   der neuesten 300 Beiträge, danach alles, was seit 2025 hochgeladen wurde. */
+function vbperf_once_webp() {
+	if ( ! wp_image_editor_supports( array( 'mime_type' => 'image/webp' ) ) ) {
+		return 'Der Server kann kein WebP schreiben, nichts geändert';
+	}
+	global $wpdb;
+	$todo = array();
 	foreach ( array( 'csd_frontpage', 'vielbunt_frontpage' ) as $opt ) {
 		$fp = get_option( $opt );
 		if ( ! is_array( $fp ) ) {
@@ -147,36 +220,31 @@ function vbperf_once_card_sizes() {
 			}
 		}
 	}
-	$todo = array_values( array_unique( array_filter( $todo ) ) );
-	update_option( 'vbperf_card_queue', $todo, false );
-	if ( ! wp_next_scheduled( 'vbperf_card_sizes_batch' ) ) {
-		wp_schedule_single_event( time() + 30, 'vbperf_card_sizes_batch' );
+	$posts = get_posts(
+		array(
+			'post_type'      => 'post',
+			'post_status'    => 'publish',
+			'posts_per_page' => 300,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+		)
+	);
+	foreach ( $posts as $post_id ) {
+		$todo[] = (int) get_post_thumbnail_id( $post_id );
 	}
-	return count( $todo ) . ' Bilder bekommen im Hintergrund die neue Kachelgröße';
+	$recent = $wpdb->get_col(
+		"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'attachment'
+		 AND post_mime_type IN ( 'image/jpeg', 'image/png' ) AND post_date >= '2025-01-01'
+		 ORDER BY post_date DESC"
+	);
+	$todo = array_values( array_unique( array_filter( array_map( 'intval', array_merge( $todo, (array) $recent ) ) ) ) );
+	delete_option( 'vbperf_card_queue' );
+	update_option( 'vbperf_img_queue', $todo, false );
+	if ( ! wp_next_scheduled( 'vbperf_img_queue_cron' ) ) {
+		wp_schedule_single_event( time() + 30, 'vbperf_img_queue_cron' );
+	}
+	return count( $todo ) . ' Bilder werden im Hintergrund als WebP neu gerechnet, Fortschritt oben auf dieser Seite';
 }
-
-function vbperf_card_sizes_batch() {
-	$todo = get_option( 'vbperf_card_queue', array() );
-	if ( ! is_array( $todo ) || ! $todo ) {
-		delete_option( 'vbperf_card_queue' );
-		return;
-	}
-	require_once ABSPATH . 'wp-admin/includes/image.php';
-	$batch = array_splice( $todo, 0, 4 );
-	// Queue vorher speichern, ein Bild das den Speicher sprengt soll nicht ewig wiederkommen
-	update_option( 'vbperf_card_queue', $todo, false );
-	foreach ( $batch as $id ) {
-		if ( wp_attachment_is_image( $id ) ) {
-			wp_update_image_subsizes( $id );
-		}
-	}
-	if ( $todo ) {
-		wp_schedule_single_event( time() + 60, 'vbperf_card_sizes_batch' );
-	} else {
-		delete_option( 'vbperf_card_queue' );
-	}
-}
-add_action( 'vbperf_card_sizes_batch', 'vbperf_card_sizes_batch' );
 
 /* WP-Optimize: Seiten 7 Tage statt 24 Stunden im Cache, jede Nacht vorladen,
    keine extra Kopie für Handys (das Theme liefert überall das gleiche HTML).
@@ -247,28 +315,27 @@ function vbperf_htaccess_lines() {
 	);
 }
 
-/* Adressen ohne Schrägstrich am Ende (vielbunt.org/spenden) hängt bisher
-   WordPress den Schrägstrich an, das kostet einen ganzen Seitenaufbau. Apache
-   kann das in Millisekunden. Kurzlinks wie /qr und /wl-... bleiben bei
-   WordPress, genauso alles mit Punkt, Parametern, Dateien und Ordnern. */
-function vbperf_slash_rules( $rules ) {
-	if ( get_option( 'vbperf_htaccess_off' ) || ! is_string( $rules ) || false === strpos( $rules, "RewriteBase /\n" ) ) {
-		return $rules;
+/* Die Schrägstrich-Regel (Oktober 2026) ist wieder raus: Kurzlinks wie
+   vielbunt.org/oeaaf sind ohne Schrägstrich eingerichtet und landeten mit
+   ihr auf einer 404. Dieser Schritt schreibt den WordPress-Block der
+   .htaccess ohne die Regel neu. Nie wieder Adressen per Apache umbiegen,
+   ohne alle Kurzlinks zu prüfen! */
+function vbperf_once_drop_slash_rule() {
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	require_once ABSPATH . 'wp-admin/includes/misc.php';
+	$file = get_home_path() . '.htaccess';
+	if ( ! file_exists( $file ) || ! is_writable( $file ) ) {
+		return '.htaccess nicht beschreibbar, nichts geändert';
 	}
-	$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
-	if ( '' === $host || ! preg_match( '/^[a-z0-9.-]+$/i', $host ) ) {
-		return $rules;
+	$before = (string) file_get_contents( $file );
+	if ( false === strpos( $before, 'RewriteCond %{REQUEST_URI} !^/(qr|wl|anmeldungen|@)' ) ) {
+		return 'Regel war nicht drin, nichts geändert';
 	}
-	$add = "RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$\n"
-		. "RewriteCond %{QUERY_STRING} ^$\n"
-		. "RewriteCond %{REQUEST_URI} !^/(wp-admin|wp-includes|wp-content|wp-json)(/|$)\n"
-		. "RewriteCond %{REQUEST_URI} !^/(qr|wl|anmeldungen|@)\n"
-		. "RewriteCond %{REQUEST_FILENAME} !-f\n"
-		. "RewriteCond %{REQUEST_FILENAME} !-d\n"
-		. 'RewriteRule ^([^.]*[^./])$ https://' . $host . "/$1/ [R=301,L]\n";
-	return str_replace( "RewriteBase /\n", "RewriteBase /\n" . $add, $rules );
+	save_mod_rewrite_rules();
+	clearstatcache();
+	$after = (string) file_get_contents( $file );
+	return false === strpos( $after, 'RewriteCond %{REQUEST_URI} !^/(qr|wl|anmeldungen|@)' ) ? 'Schrägstrich-Regel entfernt' : 'Regel noch drin, bitte von Hand entfernen';
 }
-add_filter( 'mod_rewrite_rules', 'vbperf_slash_rules' );
 
 /* Seite noch erreichbar? Startseite (an WP-Optimize vorbei) und eine statische Datei */
 function vbperf_site_answers() {
@@ -304,7 +371,6 @@ function vbperf_once_htaccess() {
 	delete_option( 'vbperf_htaccess_off' );
 
 	$ok_markers = insert_with_markers( $file, 'vielbunt Ladezeit', vbperf_htaccess_lines() );
-	$ok_rewrite = save_mod_rewrite_rules(); // schreibt den WordPress-Block neu, inkl. vbperf_slash_rules()
 	clearstatcache();
 
 	$problem = vbperf_site_answers();
@@ -314,14 +380,8 @@ function vbperf_once_htaccess() {
 		return 'Zurückgerollt (' . $problem . '), alte .htaccess wiederhergestellt';
 	}
 
-	// Stichprobe: /impressum muss jetzt von Apache weitergeleitet werden
-	$res  = wp_remote_head( home_url( '/impressum' ), array( 'timeout' => 20, 'redirection' => 0, 'sslverify' => false ) );
-	$slash = is_wp_error( $res ) ? 'nicht prüfbar' : ( wp_remote_retrieve_header( $res, 'x-redirect-by' ) ? 'noch WordPress' : 'Apache' );
-
 	return sprintf(
-		'Cache-Regeln %s, Schrägstrich-Regel %s (Weiterleitung kommt von: %s), Backup in vbperf_htaccess_backup',
-		$ok_markers ? 'drin' : 'NICHT geschrieben',
-		$ok_rewrite ? 'drin' : 'NICHT geschrieben',
-		$slash
+		'Cache-Regeln %s, Backup in vbperf_htaccess_backup',
+		$ok_markers ? 'drin' : 'NICHT geschrieben'
 	);
 }

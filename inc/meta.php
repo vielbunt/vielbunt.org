@@ -56,6 +56,13 @@ function vielbunt_meta_image() {
 		$id = get_post_thumbnail_id( get_queried_object_id() );
 		if ( $id ) {
 			$src = wp_get_attachment_image_src( $id, 'large' );
+			// Zwischengrößen sind jetzt WebP, für die Vorschau in Messengern lieber das Original
+			if ( $src && preg_match( '/\.webp$/i', $src[0] ) ) {
+				$orig = wp_get_original_image_url( $id );
+				if ( $orig && ! preg_match( '/\.webp$/i', $orig ) ) {
+					return array( $orig, 0, 0 );
+				}
+			}
 			if ( $src ) {
 				return array( $src[0], (int) $src[1], (int) $src[2] );
 			}

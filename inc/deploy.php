@@ -508,6 +508,11 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 					?>
 				</p>
 
+				<?php $queue = get_option( 'vbperf_img_queue', array() ); ?>
+				<?php if ( is_array( $queue ) && $queue ) : ?>
+					<p><strong>Bilder im Hintergrund:</strong> noch <?php echo (int) count( $queue ); ?> werden als WebP neu gerechnet (ein paar pro Minute und bei jedem Seitenaufruf im Backend).</p>
+				<?php endif; ?>
+
 				<?php $once = get_option( $this->prefix . '_once_log', array() ); ?>
 				<?php if ( ! empty( $once ) && is_array( $once ) ) : ?>
 					<h2>Einmalige Schritte</h2>

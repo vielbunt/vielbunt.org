@@ -47,9 +47,11 @@ new Vielbunt_Theme_Deploy(
 			'2026-10-menue'            => array( 'Menü: Beitragsübersicht verlinken', 'vielbunt_once_menu' ),
 			'2026-10-menue-vereinsnews' => array( 'Menü: Vereinsnews unter Neuigkeiten', 'vielbunt_once_menu_vereinsnews' ),
 			'2026-10-kategorien-runde2' => array( 'Kategorien Runde 2: Termin/News getrennt, Jugend (villaQ), Politik & Gesellschaft', 'vielbunt_once_categories_2' ),
-			'2026-10-kachelbilder'      => array( 'Kachelgröße 600 px für vorhandene Beitrags- und Startseitenbilder erzeugen', 'vbperf_once_card_sizes' ),
+			'2026-10-kachelbilder'      => array( 'Kachelgröße 600 px (ersetzt durch WebP-Schritt)', '__return_empty_string' ),
 			'2026-10-wpo-cache'         => array( 'WP-Optimize: 7 Tage Cache, nachts vorladen, keine Handy-Kopie, "Kommende Termine" cachen', 'vbperf_once_wpo_settings' ),
-			'2026-10-htaccess'          => array( '.htaccess: Cache-Dauer für JavaScript, Brotli, Schrägstrich-Weiterleitung per Apache', 'vbperf_once_htaccess' ),
+			'2026-10-htaccess'          => array( '.htaccess: Cache-Dauer für JavaScript, Brotli', 'vbperf_once_htaccess' ),
+			'2026-10-schraegstrich-weg' => array( '.htaccess: Schrägstrich-Regel wieder raus (Kurzlinks ohne / gingen kaputt)', 'vbperf_once_drop_slash_rule' ),
+			'2026-10-webp'             => array( 'Bilder als WebP neu rechnen (Zwischengrößen, Original bleibt)', 'vbperf_once_webp' ),
 			'2026-10-fediverse-follower' => array( 'ActivityPub: Follower-Liste nicht mehr öffentlich', 'vielbunt_once_hide_followers' ),
 		),
 	)
