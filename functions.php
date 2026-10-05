@@ -135,6 +135,12 @@ function vielbunt_plugin_assets_nur_wo_noetig() {
 		wp_dequeue_script( 'inline-spoilers-js' );
 		wp_dequeue_style( 'inline-spoilers-css' );
 	}
+	// Das View-Skript des Spoiler-Blocks ruft jQuery auf, sagt das WordPress aber nicht.
+	// Ohne die Abhängigkeit landet es vor jQuery ("e is not a function", Spoiler gehen nicht auf).
+	$s = wp_scripts();
+	if ( isset( $s->registered['inline-spoilers-block-view-script'] ) && ! in_array( 'jquery-core', $s->registered['inline-spoilers-block-view-script']->deps, true ) ) {
+		$s->registered['inline-spoilers-block-view-script']->deps[] = 'jquery-core';
+	}
 	if ( empty( $braucht['rapidmail'] ) ) {
 		wp_dequeue_script( 'rapidmail-widget-js' );
 		wp_dequeue_style( 'rapidmail-widget-css' );
