@@ -113,7 +113,9 @@ function vielbunt_frontpage_clean_field( $key, $value ) {
 		return '';
 	}
 	if ( 'Url' === substr( $key, -3 ) || 'url' === $key ) {
-		return esc_url_raw( trim( (string) $value ) );
+		$value = trim( (string) $value );
+		// eigene Adressen immer als https://www..., sonst kostet jeder Klick eine Weiterleitung (inc/perf.php)
+		return esc_url_raw( function_exists( 'vbperf_own_url' ) ? vbperf_own_url( $value ) : $value );
 	}
 	if ( 'lead' === $key ) {
 		return sanitize_textarea_field( (string) $value );

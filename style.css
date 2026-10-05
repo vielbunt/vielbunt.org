@@ -5,7 +5,7 @@ Description: Block-Child-Theme auf Basis von Twenty Twenty-Five für vielbunt e.
 Author: vielbunt e.V. – AK Öffentlichkeitsarbeit
 Author URI: https://www.vielbunt.org
 Template: twentytwentyfive
-Version: 2.2.0
+Version: 2.3.0
 Requires at least: 6.7
 Tested up to: 6.8
 Requires PHP: 7.4
@@ -642,4 +642,25 @@ a:focus-visible, button:focus-visible,
 	.vba-pages li:has(.next) { order: -1; }
 	.vba-pages li:has(.prev), .vba-pages li:has(.next) { flex: 1 1 calc(50% - 3px); }
 	.vba-pages li:has(.prev) .page-numbers, .vba-pages li:has(.next) .page-numbers { width: 100%; }
+}
+
+/* Fotos im Hero und in den Schnellzugriff-Kacheln sind echte <img> (srcset,
+   Priorität), sie füllen ihre Fläche wie vorher der Hintergrund */
+img.vb-hero__media,
+img.vb-tile__bg {
+	display: block; width: 100%; height: 100%; max-width: none;
+	object-fit: cover; object-position: center;
+}
+
+/* Von Hand eingefügte iframes (Vimeo, Karten, Formulare) haben eine feste
+   Breite und machten Seiten auf dem Handy breiter als den Bildschirm */
+.wp-block-post-content iframe:not(.wp-embedded-content),
+.wp-block-post-content embed {
+	max-width: 100%;
+}
+@supports (aspect-ratio: 1) {
+	/* alte Video-iframes im Absatz: volle Breite in 16:9 (Einbettungs-Blöcke sitzen in figure, nicht in p) */
+	.wp-block-post-content p iframe:is([src*="youtube"], [src*="vimeo"]) {
+		width: 100%; height: auto; aspect-ratio: 16 / 9;
+	}
 }

@@ -101,18 +101,17 @@
 		}
 		index = ( i + items.length ) % items.length;
 		var a = items[ index ];
+		var many = items.length > 1;
+		// Nächstes Bild erst vorladen, wenn das aktuelle da ist. Vorher liefen
+		// drei große Dateien gleichzeitig und das sichtbare Bild kam später.
+		imgEl.onload = many ? function () {
+			new Image().src = items[ ( index + 1 ) % items.length ].href;
+		} : null;
 		imgEl.src = a.href;
 		capEl.textContent = captionFor( a );
 		capEl.hidden = ! capEl.textContent;
-		var many = items.length > 1;
 		prevBtn.hidden = nextBtn.hidden = countEl.hidden = ! many;
 		countEl.textContent = ( index + 1 ) + ' / ' + items.length;
-		// Nachbarn schon mal vorladen, damit Blättern flüssig ist
-		if ( many ) {
-			[ index + 1, index - 1 ].forEach( function ( n ) {
-				new Image().src = items[ ( n + items.length ) % items.length ].href;
-			} );
-		}
 	}
 
 	function open( a ) {
@@ -134,6 +133,7 @@
 
 	function close() {
 		box.hidden = true;
+		imgEl.onload = null;
 		imgEl.removeAttribute( 'src' );
 		document.documentElement.classList.remove( 'vb-lb-open' );
 		document.removeEventListener( 'keydown', onKey );

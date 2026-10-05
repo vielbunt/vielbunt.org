@@ -207,23 +207,26 @@ function vbarchive_filters() {
 	return $out ? '<nav class="vba-filters" aria-label="Nach Kategorie filtern">' . $out . '</nav>' : '';
 }
 
-/* Bild: Beitragsbild (mit srcset), sonst erstes Bild im Inhalt */
-function vbarchive_image( $post ) {
-	$id = get_post_thumbnail_id( $post );
+/* Bild: Beitragsbild (mit srcset), sonst erstes Bild im Inhalt.
+   $i = Position in der Liste. Die erste Reihe ist sofort sichtbar und wird
+   nicht faul geladen, das erste Bild ist meist das größte Element der Seite
+   und bekommt hohe Priorität. */
+function vbarchive_image( $post, $i = 99 ) {
+	$eager = $i < 4;
+	$id    = get_post_thumbnail_id( $post );
 	if ( $id ) {
-		return wp_get_attachment_image(
-			$id,
-			'medium_large',
-			false,
-			array(
-				'alt'     => '',
-				'loading' => 'lazy',
-				'sizes'   => '(max-width: 600px) 50vw, (max-width: 1100px) 33vw, 300px',
-			)
+		$attr = array(
+			'alt'     => '',
+			'loading' => $eager ? false : 'lazy',
+			'sizes'   => '(max-width: 600px) 50vw, (max-width: 1100px) 33vw, 300px',
 		);
+		if ( 0 === $i ) {
+			$attr['fetchpriority'] = 'high';
+		}
+		return wp_get_attachment_image( $id, 'medium_large', false, $attr );
 	}
 	if ( preg_match( '/<img[^>]+src=["\']([^"\']+)["\']/i', $post->post_content, $m ) ) {
-		return '<img src="' . esc_url( $m[1] ) . '" alt="" loading="lazy" />';
+		return '<img src="' . esc_url( $m[1] ) . '" alt=""' . ( $eager ? '' : ' loading="lazy"' ) . ' />';
 	}
 	return '';
 }
@@ -244,7 +247,7 @@ function vbarchive_card( $post, $i, $badge = '' ) {
 			$cat  = $c->name;
 		}
 	}
-	$img    = vbarchive_image( $post );
+	$img    = vbarchive_image( $post, $i );
 	$colors = array( 'pink', 'blue', 'green', 'purple', 'orange', 'ink' );
 	$color  = $colors[ $i % count( $colors ) ];
 

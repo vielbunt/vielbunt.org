@@ -53,6 +53,15 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 			add_action( 'admin_post_' . $this->prefix . '_deploy', array( $this, 'admin_action' ) );
 			add_action( 'init', array( $this, 'run_once' ), 98 );
 			add_action( 'init', array( $this, 'purge_after_update' ), 99 );
+
+			// Website-Editor speichert an WP-Optimize vorbei, siehe purge_home()/purge_pages()
+			add_action( 'update_option_' . $this->prefix . '_frontpage', array( $this, 'purge_home' ) );
+			foreach ( $this->site_types() as $type ) {
+				add_action( 'save_post_' . $type, array( $this, 'purge_pages' ) );
+			}
+			add_action( 'deleted_post', array( $this, 'purge_pages_on_delete' ), 10, 2 );
+			add_action( 'update_option_blogname', array( $this, 'purge_pages' ) );
+			add_action( 'update_option_blogdescription', array( $this, 'purge_pages' ) );
 		}
 
 		/* ---------- Einmalige Schritte ---------- */
@@ -256,6 +265,49 @@ if ( ! class_exists( 'Vielbunt_Theme_Deploy' ) ) {
 				} catch ( \Throwable $e ) {
 					continue;
 				}
+			}
+		}
+
+		/* ---------- Speichern im Website-Editor ---------- */
+
+		/* WP-Optimize leert den Seitencache nur bei Beiträgen und Seiten. Hero und
+		   Schnellzugriff (Option), Templates, Menüs und globale Stile werden aber
+		   im Website-Editor gespeichert, davon bekommt WP-Optimize nix mit. Ohne
+		   das hier stünde die alte Startseite bis zum Ablauf des Caches online. */
+		private function site_types() {
+			return array( 'wp_template', 'wp_template_part', 'wp_navigation', 'wp_global_styles' );
+		}
+
+		/* Startseiten-Option geändert: nur die Startseite neu */
+		public function purge_home() {
+			try {
+				if ( class_exists( 'WPO_Page_Cache' ) && is_callable( array( 'WPO_Page_Cache', 'delete_homepage_cache' ) ) ) {
+					WPO_Page_Cache::delete_homepage_cache();
+				}
+			} catch ( \Throwable $e ) {
+				return;
+			}
+		}
+
+		/* Template, Menü oder Stile geändert: betrifft jede Seite. Nur der
+		   Seitencache, Autoptimize bleibt (das CSS/JS ändert sich dabei nicht). */
+		public function purge_pages() {
+			try {
+				if ( function_exists( 'WP_Optimize' ) && method_exists( WP_Optimize(), 'get_page_cache' ) ) {
+					$cache = WP_Optimize()->get_page_cache();
+					if ( $cache && method_exists( $cache, 'purge' ) ) {
+						$cache->purge();
+					}
+				}
+			} catch ( \Throwable $e ) {
+				return;
+			}
+		}
+
+		/* "Zurücksetzen" im Website-Editor löscht den Template-Post nur, da kommt kein save_post */
+		public function purge_pages_on_delete( $post_id, $post = null ) {
+			if ( $post instanceof WP_Post && in_array( $post->post_type, $this->site_types(), true ) ) {
+				$this->purge_pages();
 			}
 		}
 

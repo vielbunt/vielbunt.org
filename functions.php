@@ -22,6 +22,8 @@ require_once get_stylesheet_directory() . '/inc/schema.php';
 require_once get_stylesheet_directory() . '/inc/archive.php';
 require_once get_stylesheet_directory() . '/inc/categorize.php';
 require_once get_stylesheet_directory() . '/inc/thumbnails.php';
+require_once get_stylesheet_directory() . '/inc/perf.php';
+require_once get_stylesheet_directory() . '/inc/embeds.php';
 
 /* Suchmaschinen: Archive raus aus Index und Sitemap, siehe inc/seo.php */
 vbarchive_setup( 'vielbunt' );
@@ -45,6 +47,10 @@ new Vielbunt_Theme_Deploy(
 			'2026-10-menue'            => array( 'Menü: Beitragsübersicht verlinken', 'vielbunt_once_menu' ),
 			'2026-10-menue-vereinsnews' => array( 'Menü: Vereinsnews unter Neuigkeiten', 'vielbunt_once_menu_vereinsnews' ),
 			'2026-10-kategorien-runde2' => array( 'Kategorien Runde 2: Termin/News getrennt, Jugend (villaQ), Politik & Gesellschaft', 'vielbunt_once_categories_2' ),
+			'2026-10-kachelbilder'      => array( 'Kachelgröße 600 px für vorhandene Beitrags- und Startseitenbilder erzeugen', 'vbperf_once_card_sizes' ),
+			'2026-10-wpo-cache'         => array( 'WP-Optimize: 7 Tage Cache, nachts vorladen, keine Handy-Kopie, "Kommende Termine" cachen', 'vbperf_once_wpo_settings' ),
+			'2026-10-htaccess'          => array( '.htaccess: Cache-Dauer für JavaScript, Brotli, Schrägstrich-Weiterleitung per Apache', 'vbperf_once_htaccess' ),
+			'2026-10-fediverse-follower' => array( 'ActivityPub: Follower-Liste nicht mehr öffentlich', 'vielbunt_once_hide_followers' ),
 		),
 	)
 );
@@ -75,16 +81,66 @@ function vielbunt_enqueue_styles() {
 		wp_get_theme()->get( 'Version' ),
 		true
 	);
-	/* ersetzt das alte FancyBox-Plugin, ohne jQuery */
-	wp_enqueue_script(
-		'vielbunt-lightbox',
-		get_stylesheet_directory_uri() . '/assets/lightbox.js',
-		array(),
-		wp_get_theme()->get( 'Version' ),
-		array( 'in_footer' => true, 'strategy' => 'defer' )
-	);
+	/* die Lightbox (ersetzt FancyBox) kommt nur noch auf Seiten mit Bildlinks, siehe inc/perf.php */
 }
 add_action( 'wp_enqueue_scripts', 'vielbunt_enqueue_styles' );
+
+/* Follower*innen-Liste des Blog-Profils nicht mehr für alle abrufbar machen,
+   die Zustellung an die Follower*innen läuft davon unabhängig weiter */
+function vielbunt_once_hide_followers() {
+	if ( ! defined( 'ACTIVITYPUB_PLUGIN_VERSION' ) && ! class_exists( '\Activitypub\Activitypub' ) ) {
+		return 'ActivityPub nicht aktiv, nichts geändert';
+	}
+	$before = get_option( 'activitypub_hide_social_graph', '0' );
+	update_option( 'activitypub_hide_social_graph', 1 );
+	return 'Follower-Liste verborgen (vorher: ' . ( $before ? 'schon verborgen' : 'öffentlich' ) . ')';
+}
+
+/* Inline Spoilers und Rapidmail brauchen jQuery und laden bisher auf jeder
+   Seite, gebraucht werden sie aber kaum. Wir merken uns beim Rendern, ob ein
+   Spoiler oder ein Rapidmail-Formular vorkam (das Template läuft vor wp_head),
+   und lassen die Dateien nur dann weg, wenn nichts davon auf der Seite ist.
+   Wo ein Formular oder Spoiler steht, bleibt alles genau wie vorher. */
+function vielbunt_merke_plugins( $out, $tag ) {
+	if ( in_array( $tag, array( 'spoiler', 'spoilers', 'rm_form', 'rapidmail' ), true ) ) {
+		$GLOBALS['vielbunt_braucht'][ 0 === strpos( $tag, 'spoiler' ) ? 'spoiler' : 'rapidmail' ] = true;
+	}
+	return $out;
+}
+add_filter( 'do_shortcode_tag', 'vielbunt_merke_plugins', 10, 2 );
+
+function vielbunt_merke_plugin_bloecke( $html, $block ) {
+	$name = isset( $block['blockName'] ) ? (string) $block['blockName'] : '';
+	if ( 0 === strpos( $name, 'inline-spoilers/' ) || false !== strpos( $html, 'spoiler-head' ) || false !== strpos( $html, 'spoiler-wrap' ) ) {
+		$GLOBALS['vielbunt_braucht']['spoiler'] = true;
+	}
+	// emailsys = Rapidmails Formular-Server (z. B. Popup auf /netzwerk-newsletter/), da lassen wir lieber alles drin
+	if ( 0 === strpos( $name, 'rapidmail' ) || false !== stripos( $html, 'rm-form' ) || false !== stripos( $html, 'rapidmail' ) || false !== strpos( $html, 'rm_widget' ) || false !== stripos( $html, 'emailsys' ) ) {
+		$GLOBALS['vielbunt_braucht']['rapidmail'] = true;
+	}
+	return $html;
+}
+add_filter( 'render_block', 'vielbunt_merke_plugin_bloecke', 10, 2 );
+
+function vielbunt_plugin_assets_nur_wo_noetig() {
+	if ( is_admin() ) {
+		return;
+	}
+	$braucht = isset( $GLOBALS['vielbunt_braucht'] ) ? $GLOBALS['vielbunt_braucht'] : array();
+	// Rapidmail als klassisches Widget (Sidebar) zählt auch, falls doch mal eins aktiv ist
+	if ( is_active_widget( false, false, 'rapidmail', true ) || is_active_widget( false, false, 'rm_widget', true ) ) {
+		$braucht['rapidmail'] = true;
+	}
+	if ( empty( $braucht['spoiler'] ) ) {
+		wp_dequeue_script( 'inline-spoilers-js' );
+		wp_dequeue_style( 'inline-spoilers-css' );
+	}
+	if ( empty( $braucht['rapidmail'] ) ) {
+		wp_dequeue_script( 'rapidmail-widget-js' );
+		wp_dequeue_style( 'rapidmail-widget-css' );
+	}
+}
+add_action( 'wp_enqueue_scripts', 'vielbunt_plugin_assets_nur_wo_noetig', 100 );
 
 // Eigene Klassen auch im Editor-Canvas sichtbar machen.
 function vielbunt_editor_styles() {
@@ -98,8 +154,49 @@ add_action( 'after_setup_theme', 'vielbunt_editor_styles' );
    in der Mediathek unter /wp-content/uploads/2021/01/
    enqueue_block_assets läuft im Frontend und im Editor-Iframe,
    desswegen klappt die Vorschau auch dort */
+/* Teilmengen (nur lateinische Zeichen, 18 statt 53 KB je Schnitt). Liegen wie
+   die Originale in uploads/2021/01, Dateinamen mit -latin / -latin-ext. Solange
+   sie dort nicht liegen, bleibt alles beim Alten (Originaldateien). */
+function vielbunt_font_subsets_ready() {
+	static $ready = null;
+	if ( null === $ready ) {
+		$dir   = WP_CONTENT_DIR . '/uploads/2021/01/';
+		$ready = file_exists( $dir . 'Cera-Pro-Regular-latin.woff2' ) && file_exists( $dir . 'Cera-Pro-Bold-latin.woff2' )
+			&& file_exists( $dir . 'Cera-Pro-Regular-Italic-latin.woff2' ) && file_exists( $dir . 'Cera-Pro-Bold-latin-ext.woff2' );
+	}
+	return $ready;
+}
+
 function vielbunt_font_face_css() {
 	$base = content_url( '/uploads/2021/01' );
+	if ( vielbunt_font_subsets_ready() ) {
+		// Bereiche wie bei Google Fonts, plus Pfeile (→), ♥ und geometrische Formen, die Cera Pro auch hat
+		$ranges = array(
+			'latin-ext' => 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0300-036F,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF',
+			'latin'     => 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2190-2199,U+2212,U+2215,U+25A0-25FF,U+2665,U+FEFF,U+FFFD',
+		);
+		$faces = array(
+			array( 'normal', '400', 'Cera-Pro-Regular' ),
+			array( 'italic', '400', 'Cera-Pro-Regular-Italic' ),
+			array( 'normal', '800', 'Cera-Pro-Bold' ),
+		);
+		$css = '';
+		foreach ( $faces as $f ) {
+			foreach ( $ranges as $sub => $range ) {
+				$css .= sprintf(
+					'@font-face{font-family:"Cera Pro";font-style:%1$s;font-weight:%2$s;font-display:swap;src:url("%3$s/%4$s-%5$s.woff2") format("woff2");unicode-range:%6$s;}',
+					$f[0],
+					$f[1],
+					esc_url( $base ),
+					$f[2],
+					$sub,
+					$range
+				);
+			}
+		}
+		return $css;
+	}
+
 	$faces = array(
 		array( 'normal', '400', 'Cera-Pro-Regular' ),
 		array( 'italic', '400', 'Cera-Pro-Regular-Italic' ),
@@ -124,6 +221,23 @@ function vielbunt_enqueue_fonts() {
 	wp_add_inline_style( 'vielbunt-fonts', vielbunt_font_face_css() );
 }
 add_action( 'enqueue_block_assets', 'vielbunt_enqueue_fonts' );
+
+/* Normal und Fett gleich mit dem HTML anfordern, nicht erst nach dem CSS */
+function vielbunt_preload_fonts( $resources ) {
+	if ( is_admin() || ! vielbunt_font_subsets_ready() ) {
+		return $resources;
+	}
+	foreach ( array( 'Cera-Pro-Regular', 'Cera-Pro-Bold' ) as $name ) {
+		$resources[] = array(
+			'href'        => content_url( '/uploads/2021/01/' . $name . '-latin.woff2' ),
+			'as'          => 'font',
+			'type'        => 'font/woff2',
+			'crossorigin' => 'anonymous',
+		);
+	}
+	return $resources;
+}
+add_filter( 'wp_preload_resources', 'vielbunt_preload_fonts' );
 
 /* Datum aus dem Beitragstitel parsen
    "06.06.: Museumsbesuch"    -> 6. Juni, Titel "Museumsbesuch"
@@ -187,32 +301,60 @@ function vielbunt_parse_event_date( $title, $post = null ) {
 	);
 }
 
-function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
-	$query = new WP_Query(
+/* Titel-Index: nur ID, Titel und Datum der neuesten 300 Beiträge. Für die
+   Datumserkennung reicht das, Inhalt, Meta und Kategorien laden wir nur für
+   die Beiträge, die am Ende wirklich angezeigt werden (vielbunt_prime_posts).
+   Einmal pro Seitenaufruf, Termine, Feed und "Kommende Termine" teilen sich das. */
+function vielbunt_title_index( $limit = 300 ) {
+	static $rows = null;
+	if ( null === $rows ) {
+		global $wpdb;
+		$rows = $wpdb->get_results(
+			"SELECT ID, post_title, post_date FROM {$wpdb->posts}
+			 WHERE post_type = 'post' AND post_status = 'publish'
+			 ORDER BY post_date DESC, ID DESC LIMIT 300"
+		);
+		$rows = is_array( $rows ) ? $rows : array();
+	}
+	return array_slice( $rows, 0, $limit );
+}
+
+/* die angezeigten Beiträge auf einen Rutsch laden (Inhalt, Meta, Kategorien, Beitragsbilder) */
+function vielbunt_prime_posts( $ids ) {
+	$ids = array_values( array_unique( array_filter( array_map( 'intval', $ids ) ) ) );
+	if ( ! $ids ) { // leeres post__in hieße "alle Beiträge"
+		return;
+	}
+	$q = new WP_Query(
 		array(
 			'post_type'           => 'post',
 			'post_status'         => 'publish',
-			'posts_per_page'      => 150,
+			'post__in'            => $ids,
+			'orderby'             => 'post__in',
+			'posts_per_page'      => count( $ids ),
 			'ignore_sticky_posts' => true,
 			'no_found_rows'       => true,
 		)
 	);
+	update_post_thumbnail_cache( $q );
+}
 
+function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
 	$events_upcoming = array();
 	$events_recent   = array(); // vergangene Events der letzten 14 Tage als Reserve
 	$feed            = array();
 	$today           = strtotime( 'today', current_time( 'timestamp' ) );
 
-	foreach ( $query->posts as $post ) {
-		$parsed = vielbunt_parse_event_date( $post->post_title, $post );
+	foreach ( vielbunt_title_index( 150 ) as $row ) {
+		$parsed = vielbunt_parse_event_date( $row->post_title, $row );
 		if ( $parsed ) {
 			if ( $parsed['timestamp'] >= $today ) {
-				$events_upcoming[] = array( 'post' => $post, 'meta' => $parsed );
+				$events_upcoming[] = array( 'id' => (int) $row->ID, 'meta' => $parsed );
 			} elseif ( $parsed['timestamp'] >= $today - 14 * DAY_IN_SECONDS ) {
-				$events_recent[] = array( 'post' => $post, 'meta' => $parsed );
+				$events_recent[] = array( 'id' => (int) $row->ID, 'meta' => $parsed );
 			}
 		} else {
-			$feed[] = $post;
+			$feed[] = (int) $row->ID;
 		}
 	}
 
@@ -270,9 +412,16 @@ function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
 		}
 	);
 
+	// erst jetzt die echten Beiträge laden, nur die angezeigten
+	$feed = array_slice( $feed, 0, $feed_limit );
+	vielbunt_prime_posts( array_merge( wp_list_pluck( $events, 'id' ), $feed ) );
+	foreach ( $events as $k => $e ) {
+		$events[ $k ]['post'] = get_post( $e['id'] );
+	}
+
 	return array(
-		'events' => $events,
-		'feed'   => array_slice( $feed, 0, $feed_limit ),
+		'events' => array_values( array_filter( $events, static function ( $e ) { return $e['post'] instanceof WP_Post; } ) ),
+		'feed'   => array_values( array_filter( array_map( 'get_post', $feed ) ) ),
 	);
 }
 
@@ -280,21 +429,12 @@ function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
    Beitragsseite (/beitraege/?ansicht=termine). Gleiche Datumserkennung wie
    auf der Startseite, nur ohne Begrenzung auf 8 Kacheln. */
 function vielbunt_upcoming_events() {
-	$query = new WP_Query(
-		array(
-			'post_type'           => 'post',
-			'post_status'         => 'publish',
-			'posts_per_page'      => 300,
-			'ignore_sticky_posts' => true,
-			'no_found_rows'       => true,
-		)
-	);
 	$today  = strtotime( 'today', current_time( 'timestamp' ) );
 	$events = array();
-	foreach ( $query->posts as $post ) {
-		$parsed = vielbunt_parse_event_date( $post->post_title, $post );
+	foreach ( vielbunt_title_index( 300 ) as $row ) {
+		$parsed = vielbunt_parse_event_date( $row->post_title, $row );
 		if ( $parsed && $parsed['timestamp'] >= $today ) {
-			$events[] = array( 'post' => $post, 'badge' => $parsed['date_label'], 'ts' => $parsed['timestamp'] );
+			$events[] = array( 'id' => (int) $row->ID, 'badge' => $parsed['date_label'], 'ts' => $parsed['timestamp'] );
 		}
 	}
 	usort(
@@ -303,7 +443,15 @@ function vielbunt_upcoming_events() {
 			return $a['ts'] <=> $b['ts'];
 		}
 	);
-	return $events;
+	vielbunt_prime_posts( wp_list_pluck( $events, 'id' ) );
+	$out = array();
+	foreach ( $events as $e ) {
+		$post = get_post( $e['id'] );
+		if ( $post instanceof WP_Post ) {
+			$out[] = array( 'post' => $post, 'badge' => $e['badge'], 'ts' => $e['ts'] );
+		}
+	}
+	return $out;
 }
 
 function vielbunt_archive_views( $views ) {
@@ -314,6 +462,30 @@ function vielbunt_archive_views( $views ) {
 	return $views;
 }
 add_filter( 'vbarchive_views', 'vielbunt_archive_views' );
+
+/* WP-Optimize cached Adressen mit ?-Parametern sonst gar nicht, "Kommende
+   Termine" wurde deshalb jedes Mal neu gebaut (1,5 bis 2 s). "ansicht" darf
+   jetzt in den Cache, als eigene Datei im Ordner von /beitraege/, die beim
+   Veröffentlichen und kurz nach Mitternacht mit geleert wird. Greift, sobald
+   WP-Optimize seine Einstellungen neu schreibt (einmaliger Schritt oben). */
+function vielbunt_wpo_ansicht( $vars ) {
+	$vars[] = 'ansicht';
+	return array_values( array_unique( $vars ) );
+}
+add_filter( 'wpo_cache_query_variables', 'vielbunt_wpo_ansicht' );
+
+/* unbekannte Ansichten zurück auf die normale Beitragsseite, sonst könnte
+   jede*r mit ?ansicht=irgendwas beliebig viele Cache-Dateien anlegen */
+function vielbunt_unknown_view() {
+	if ( is_home() && isset( $_GET['ansicht'] ) && ! vbarchive_current_view() ) { // phpcs:ignore WordPress.Security.NonceVerification
+		$url = vbarchive_posts_page_url();
+		if ( $url ) {
+			wp_safe_redirect( $url, 301 );
+			exit;
+		}
+	}
+}
+add_action( 'template_redirect', 'vielbunt_unknown_view' );
 
 function vielbunt_card_color( $index ) {
 	$colors = array( 'pink', 'blue', 'green', 'purple', 'orange', 'ink' );
@@ -357,6 +529,45 @@ function vielbunt_hero_defaults() {
 	);
 }
 
+/* Hero-Foto als echtes <img> statt CSS-Hintergrund: der Browser findet es
+   sofort im HTML, holt es mit hoher Priorität und sucht sich per srcset die
+   passende Größe aus. Mehr als 1024 px sieht unter dem pinken Schleier eh
+   niemand, und 1024 ist dieselbe Datei wie bei der Kachel. Ohne Bild oder bei
+   gelöschtem Anhang bleibt es beim Verlauf wie vorher. */
+function vielbunt_hero_media( $hero ) {
+	$id = (int) $hero['bgId'];
+	if ( ! $id && '' !== $hero['bgUrl'] ) {
+		$id = (int) attachment_url_to_postid( $hero['bgUrl'] );
+	}
+	if ( $id ) {
+		$cap = static function () {
+			return 1024;
+		};
+		add_filter( 'max_srcset_image_width', $cap );
+		$img = wp_get_attachment_image(
+			$id,
+			'large',
+			false,
+			array(
+				'class'         => 'vb-hero__media',
+				'alt'           => '',
+				'aria-hidden'   => 'true',
+				'sizes'         => '100vw',
+				'loading'       => false,
+				'fetchpriority' => 'high',
+				'decoding'      => 'async',
+			)
+		);
+		remove_filter( 'max_srcset_image_width', $cap );
+		if ( $img ) {
+			return $img;
+		}
+	}
+	$bg    = vielbunt_frontpage_image( $hero['bgId'], $hero['bgUrl'], 'large' );
+	$media = '' !== $bg ? 'url(' . esc_url( $bg ) . ')' : apply_filters( 'vielbunt_hero_media', 'linear-gradient(120deg,#2a2350,#5a2b6b)' );
+	return '<div class="vb-hero__media" aria-hidden="true" style="background-image:' . esc_attr( $media ) . '"></div>';
+}
+
 /* Hero. Inhalte kommen aus der Option vielbunt_frontpage (inc/frontpage.php),
    leere Felder fallen auf die Standards oben zurück. */
 function vielbunt_block_hero( $attributes = array() ) {
@@ -375,17 +586,12 @@ function vielbunt_block_hero( $attributes = array() ) {
 	$btn2_l = $hero['btn2Label'];
 	$btn2_u = $hero['btn2Url'];
 
-	$bg = vielbunt_frontpage_image( $hero['bgId'], $hero['bgUrl'], 'full' );
-	if ( '' !== $bg ) {
-		$media = 'url(' . esc_url( $bg ) . ')';
-	} else {
-		$media = apply_filters( 'vielbunt_hero_media', 'linear-gradient(120deg,#2a2350,#5a2b6b)' );
-	}
+	$media_html = vielbunt_hero_media( $hero );
 
 	ob_start();
 	?>
 	<section class="vb-hero">
-		<div class="vb-hero__media" aria-hidden="true" style="background-image:<?php echo esc_attr( $media ); ?>"></div>
+		<?php echo $media_html; // phpcs:ignore WordPress.Security.EscapeOutput -- in vielbunt_hero_media() escaped ?>
 		<div class="vb-bars-anim" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 		<div class="vb-hero__text">
 			<?php if ( $kicker ) : ?><p class="vb-kicker"><?php echo esc_html( $kicker ); ?></p><?php endif; ?>
@@ -416,6 +622,40 @@ function vielbunt_default_tiles() {
 	);
 }
 
+/* Kachelbild: die Kacheln sind 170 bis 300 px breit und liegen unter 78 %
+   Farbe. Als <img> mit srcset reicht meist die 300er- oder 768er-Datei statt
+   1024 px oder sogar dem Original (transvilla.jpg hatte 2 MB). Niedrige
+   Priorität, damit das Hero-Foto zuerst kommt. */
+function vielbunt_tile_image( $id, $url ) {
+	$id = (int) $id;
+	if ( ! $id && '' !== (string) $url ) {
+		$id = (int) attachment_url_to_postid( $url );
+	}
+	if ( $id ) {
+		$img = wp_get_attachment_image(
+			$id,
+			'medium_large',
+			false,
+			array(
+				'class'         => 'vb-tile__bg',
+				'alt'           => '',
+				'aria-hidden'   => 'true',
+				'sizes'         => '(max-width: 781px) calc(50vw - 28px), 300px',
+				'loading'       => 'lazy',
+				'fetchpriority' => 'low',
+				'decoding'      => 'async',
+			)
+		);
+		if ( $img ) {
+			return $img;
+		}
+	}
+	if ( '' !== (string) $url ) { // nur eine Adresse ohne Anhang: wie bisher als Hintergrund
+		return sprintf( '<span class="vb-tile__bg" style="background-image:url(%s)"></span>', esc_url( $url ) );
+	}
+	return '';
+}
+
 function vielbunt_block_quicklinks( $attributes = array() ) {
 	$tiles = vielbunt_default_tiles();
 	$hex = array(
@@ -440,15 +680,11 @@ function vielbunt_block_quicklinks( $attributes = array() ) {
 		$hexc = $hex[ $color ];
 
 		// Optionales Kachel-Hintergrundbild (im Editor je Kachel wählbar).
-		$img_url = vielbunt_frontpage_image( $override['imgId'], $override['imgUrl'] );
-		$layers = '';
+		// Bild + Farb-Schleier (damit Icon und Text lesbar bleiben).
+		$layers  = vielbunt_tile_image( $override['imgId'], $override['imgUrl'] );
+		$img_url = '' !== $layers;
 		if ( $img_url ) {
-			// Bild + Farb-Schleier (damit Icon und Text lesbar bleiben).
-			$layers = sprintf(
-				'<span class="vb-tile__bg" style="background-image:url(%1$s)"></span><span class="vb-tile__shade" style="background:%2$s"></span>',
-				esc_url( $img_url ),
-				esc_attr( $hexc )
-			);
+			$layers .= sprintf( '<span class="vb-tile__shade" style="background:%s"></span>', esc_attr( $hexc ) );
 		}
 
 		$grid .= sprintf(
@@ -500,12 +736,17 @@ function vielbunt_block_events( $attributes = array() ) {
 		$meta  = $item['meta'];
 		$title = '' !== $meta['clean_title'] ? $meta['clean_title'] : get_the_title( $post );
 		$url   = get_permalink( $post );
-		$img   = vielbunt_event_image( $post );
+		// Sharepic vorhanden: Originalbild unverändert zeigen, kein Overlay.
+		// Alt-Text = Datum + Titel (für Screenreader).
+		$alt = trim( $meta['date_label'] . ' ' . $title );
+		$tag = vbperf_card_image( $post, $alt, '(max-width: 781px) calc(50vw - 28px), 300px' );
+		$img = '' === $tag ? vielbunt_event_image( $post ) : '';
 
-		if ( $img ) {
-			// Sharepic vorhanden: Originalbild unverändert zeigen, kein Overlay.
-			// Alt-Text = Datum + Titel (für Screenreader).
-			$alt  = trim( $meta['date_label'] . ' ' . $title );
+		if ( '' !== $tag ) {
+			// Beitragsbild mit srcset, Handys holen sich die 600er-Datei statt 1024 px
+			$out .= '<a class="vb-card vb-card--img" href="' . esc_url( $url ) . '">' . $tag . '</a>';
+		} elseif ( $img ) {
+			// nur ein Bild im Text, kein Beitragsbild: wie bisher
 			$out .= sprintf(
 				'<a class="vb-card vb-card--img" href="%1$s"><img src="%2$s" alt="%3$s" loading="lazy" /></a>',
 				esc_url( $url ),
@@ -545,7 +786,7 @@ function vielbunt_block_feed( $attributes = array() ) {
 		$cats    = get_the_category( $post->ID );
 		$cat     = ! empty( $cats ) ? $cats[0]->name : '';
 		$excerpt = wp_trim_words( wp_strip_all_tags( $post->post_excerpt ? $post->post_excerpt : $post->post_content ), 24 );
-		$thumb   = get_the_post_thumbnail( $post, array( 72, 72 ) );
+		$thumb   = get_the_post_thumbnail( $post, array( 72, 72 ), array( 'loading' => 'lazy' ) );
 
 		$out .= '<article class="vb-feed__row">';
 		if ( $thumb ) {
@@ -599,12 +840,7 @@ function vielbunt_block_post_hero( $attributes = array() ) {
 		return '';
 	}
 
-	$img = get_the_post_thumbnail_url( $post_id, 'full' );
-	if ( $img ) {
-		$media = 'url(' . esc_url( $img ) . ')';
-	} else {
-		$media = 'linear-gradient(135deg,#c0104a,#e6175f)';
-	}
+	$media_html = vbperf_post_hero_media( $post_id, 'linear-gradient(135deg,#c0104a,#e6175f)' );
 
 	$title  = get_the_title( $post_id );
 	$kicker = '';
@@ -616,7 +852,7 @@ function vielbunt_block_post_hero( $attributes = array() ) {
 	ob_start();
 	?>
 	<section class="vb-hero vb-hero--post">
-		<div class="vb-hero__media" aria-hidden="true" style="background-image:<?php echo esc_attr( $media ); ?>"></div>
+		<?php echo $media_html; // phpcs:ignore WordPress.Security.EscapeOutput -- in vbperf_post_hero_media() escaped ?>
 		<div class="vb-bars-anim" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 		<div class="vb-hero__text">
 			<?php if ( $kicker ) : ?>
