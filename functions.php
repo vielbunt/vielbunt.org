@@ -250,7 +250,9 @@ add_filter( 'wp_preload_resources', 'vielbunt_preload_fonts' );
 /* Datum aus dem Beitragstitel parsen
    "06.06.: Museumsbesuch"    -> 6. Juni, Titel "Museumsbesuch"
    "28.05. · 19:00 treffbunt" -> 28. Mai
-   "01.06.-05.06.2026 Woche"  -> Startdatum 1. Juni */
+   "01.06.-05.06.2026 Woche"  -> Startdatum 1. Juni, letzter Tag 5. Juni
+   timestamp ist immer der Start, end_timestamp der letzte Tag (bei einem
+   einzelnen Termin derselbe Tag). Vorbei ist ein Termin erst nach end_timestamp. */
 function vielbunt_parse_event_date( $title, $post = null ) {
 	$title = trim( wp_strip_all_tags( $title ) );
 
@@ -267,10 +269,35 @@ function vielbunt_parse_event_date( $title, $post = null ) {
 		return null;
 	}
 
+	// Zeitraum ("26.10.-30.10.2026", "05.-09.10."): Tag und Monat vom letzten Tag.
+	// Ein Wochenprogramm ist erst nach seinem letzten Tag vorbei, nicht schon
+	// einen Tag nach dem Start.
+	$end_day = $end_month = 0;
+	$wraps   = false;
+	if ( preg_match( '/^\s*\d{1,2}\.(?:\d{1,2}\.)?\s*[-\x{2013}]\s*(\d{1,2})\.(\d{1,2})\./u', $title, $e )
+		&& $e[1] >= 1 && $e[1] <= 31 && $e[2] >= 1 && $e[2] <= 12 ) {
+		$end_day   = (int) $e[1];
+		$end_month = (int) $e[2];
+		if ( $end_month < $month || ( $end_month === $month && $end_day < $day ) ) {
+			// Ende liegt im Kalender vor dem Start: nur bei einem Jahreswechsel
+			// (höchstens zwei Monate, z. B. Dezember bis Januar) glaubwürdig,
+			// sonst ein Tippfehler im Titel
+			if ( $end_month < $month && 12 - $month + $end_month <= 2 ) {
+				$wraps = true;
+			} else {
+				$end_day = $end_month = 0;
+			}
+		}
+	}
+
 	if ( ! empty( $m[3] ) ) {
 		$year = (int) $m[3];
 		if ( $year < 100 ) {
 			$year += 2000;
+		}
+		// das Jahr im Titel gehört zum letzten Datum: "29.12.-02.01.2027" fängt 2026 an
+		if ( $wraps ) {
+			$year--;
 		}
 	} else {
 		// Veröffentlichungsdatum als Referenz nehmen, nicht das heutige Datum.
@@ -283,8 +310,13 @@ function vielbunt_parse_event_date( $title, $post = null ) {
 		} else {
 			$ref_ts = current_time( 'timestamp' );
 		}
-		$year   = (int) date( 'Y', $ref_ts );
-		$try_ts = mktime( 0, 0, 0, $month, $day, $year );
+		$year = (int) date( 'Y', $ref_ts );
+		// Bei einem Zeitraum entscheidet sein letzter Tag, sonst landet ein
+		// Wochenprogramm, das erst am Dienstag online geht, ausversehen im
+		// nächsten Jahr.
+		$try_ts = $end_day
+			? mktime( 0, 0, 0, $end_month, $end_day, $year + (int) $wraps )
+			: mktime( 0, 0, 0, $month, $day, $year );
 		if ( $try_ts < ( $ref_ts - DAY_IN_SECONDS ) ) {
 			$year++;
 		}
@@ -295,6 +327,9 @@ function vielbunt_parse_event_date( $title, $post = null ) {
 		return null;
 	}
 
+	// letzter Tag: bei einem Zeitraum das Ende, sonst der Termin selbst
+	$end_timestamp = $end_day ? max( $timestamp, mktime( 0, 0, 0, $end_month, $end_day, $year + (int) $wraps ) ) : $timestamp;
+
 	$clean = preg_replace(
 		'/^\s*\d{1,2}\.(?:\s*[-\x{2013}]\s*\d{1,2}\.)?\d{1,2}\.(?:\s*[-\x{2013}]\s*\d{1,2}\.\d{1,2}\.)?(?:\d{4}|\d{2}(?!\d))?\s*(?:[:\x{00B7}\-\x{2013}|]\s*)?/u',
 		'',
@@ -303,9 +338,10 @@ function vielbunt_parse_event_date( $title, $post = null ) {
 	$clean = preg_replace( '/^\s*\d{1,2}:\d{2}\s*(?:Uhr)?\s*(?:[:\x{00B7}\-\x{2013}|]\s*)?/u', '', $clean );
 
 	return array(
-		'timestamp'   => $timestamp,
-		'date_label'  => sprintf( '%02d.%02d.', $day, $month ),
-		'clean_title' => trim( $clean ),
+		'timestamp'     => $timestamp,
+		'end_timestamp' => $end_timestamp,
+		'date_label'    => sprintf( '%02d.%02d.', $day, $month ),
+		'clean_title'   => trim( $clean ),
 	);
 }
 
@@ -356,9 +392,10 @@ function vielbunt_get_sorted_posts( $event_limit = 8, $feed_limit = 6 ) {
 	foreach ( vielbunt_title_index( 150 ) as $row ) {
 		$parsed = vielbunt_parse_event_date( $row->post_title, $row );
 		if ( $parsed ) {
-			if ( $parsed['timestamp'] >= $today ) {
+			// bei einem Zeitraum (Wochenprogramm) zählt der letzte Tag, nicht der Start
+			if ( $parsed['end_timestamp'] >= $today ) {
 				$events_upcoming[] = array( 'id' => (int) $row->ID, 'meta' => $parsed );
-			} elseif ( $parsed['timestamp'] >= $today - 14 * DAY_IN_SECONDS ) {
+			} elseif ( $parsed['end_timestamp'] >= $today - 14 * DAY_IN_SECONDS ) {
 				$events_recent[] = array( 'id' => (int) $row->ID, 'meta' => $parsed );
 			}
 		} else {
@@ -441,7 +478,7 @@ function vielbunt_upcoming_events() {
 	$events = array();
 	foreach ( vielbunt_title_index( 300 ) as $row ) {
 		$parsed = vielbunt_parse_event_date( $row->post_title, $row );
-		if ( $parsed && $parsed['timestamp'] >= $today ) {
+		if ( $parsed && $parsed['end_timestamp'] >= $today ) {
 			$events[] = array( 'id' => (int) $row->ID, 'badge' => $parsed['date_label'], 'ts' => $parsed['timestamp'] );
 		}
 	}

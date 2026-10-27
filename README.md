@@ -94,20 +94,26 @@ ist ein führendes Datum im Beitragstitel:
 
 - `06.06.: Museumsbesuch ...` → Termin am 6. Juni, Titel „Museumsbesuch"
 - `28.05. · 19:00 treffbunt Nr. 182` → Termin am 28. Mai
-- `01.06.-05.06.2026 Wochenprogramm` → Startet am 1. Juni
+- `01.06.-05.06.2026 Wochenprogramm` → Zeitraum vom 1. bis 5. Juni
 - `vielbunt zum IDAHOBITA*` → kein Datum erkannt, landet im News-Feed
 
 Das Datum oben links auf der Kachel kommt aus genau diesem Titel, wir
 pflegen also nichts doppelt. Der Datumspräfix wird für die Anzeige
 automatisch abgeschnitten.
 
-Vergangene Termine fallen automatisch raus. Wenn es zu wenige zukünftige
-gibt füllen wir mit kürzlich vergangenen (max. 14 Tage) auf, immer so
-dass volle Reihen rauskommen (8 oder 4 Kacheln, nie 7 oder 5).
+Vergangene Termine fallen automatisch raus. Bei einem Zeitraum
+(Wochenprogramm, Ferienprogramm) zählt der letzte Tag: die Kachel bleibt
+bis einschließlich diesem Tag vorne, sortiert wird aber nach dem Start.
+Steht das Ende vor dem Start (Tippfehler), zählt nur der Start. Einzige
+Ausnahme ist ein Jahreswechsel wie `28.12.-01.01.2027`. Wenn es zu wenige
+zukünftige gibt füllen wir mit kürzlich vergangenen (max. 14 Tage nach dem
+letzten Tag) auf, immer so dass volle Reihen rauskommen (8 oder 4 Kacheln,
+nie 7 oder 5).
 
 Da die Titel meist nur Tag/Monat tragen leiten wir das Jahr selbst ab,
 ausgehend vom Veröffentlichungsdatum des Beitrags. Ein explizit
-genanntes Jahr (z.B. `2026`) hat natürlich Vorrang.
+genanntes Jahr (z.B. `2026`) hat natürlich Vorrang, bei einem Zeitraum
+gilt es für das letzte Datum.
 
 Hat der Beitrag ein Bild (Beitragsbild, sonst das erste Bild im Inhalt),
 zeigen wir das als Sharepic unverändert. Ohne Bild: farbige Kachel mit
